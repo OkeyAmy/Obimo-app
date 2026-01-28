@@ -8,7 +8,6 @@ import EmailAuthScreen from "@/screens/EmailAuthScreen";
 import EmailConfirmationScreen from "@/screens/EmailConfirmationScreen";
 import ReplitAuthScreen from "@/screens/ReplitAuthScreen";
 import ModalScreen from "@/screens/ModalScreen";
-import { useScreenOptions } from "@/hooks/useScreenOptions";
 import { ObimoColors } from "@/constants/theme";
 
 export type RootStackParamList = {
@@ -24,13 +23,11 @@ export type RootStackParamList = {
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
 export default function RootStackNavigator() {
-  const screenOptions = useScreenOptions();
-
   return (
     <Stack.Navigator
       initialRouteName="Splash"
       screenOptions={{
-        ...screenOptions,
+        headerShown: false,
         contentStyle: {
           backgroundColor: ObimoColors.background,
         },
@@ -39,28 +36,19 @@ export default function RootStackNavigator() {
       <Stack.Screen
         name="Splash"
         component={SplashScreen}
-        options={{ headerShown: false }}
       />
       <Stack.Screen
         name="Welcome"
         component={WelcomeScreen}
-        options={{ headerShown: false }}
       />
       <Stack.Screen
         name="EmailAuth"
         component={EmailAuthScreen}
-        options={{
-          headerTitle: "",
-          headerBackTitle: "",
-          headerTransparent: true,
-          headerTintColor: ObimoColors.textPrimary,
-        }}
       />
       <Stack.Screen
         name="EmailConfirmation"
         component={EmailConfirmationScreen}
         options={{
-          headerShown: false,
           presentation: "fullScreenModal",
         }}
       />
@@ -68,21 +56,18 @@ export default function RootStackNavigator() {
         name="ReplitAuth"
         component={ReplitAuthScreen}
         options={{
-          headerShown: false,
           presentation: "fullScreenModal",
         }}
       />
       <Stack.Screen
         name="Main"
         component={MainTabNavigator}
-        options={{ headerShown: false }}
       />
       <Stack.Screen
         name="Modal"
         component={ModalScreen}
         options={{
           presentation: "modal",
-          headerTitle: "Modal",
         }}
       />
     </Stack.Navigator>

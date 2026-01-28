@@ -13,7 +13,6 @@ import Animated, {
   withSpring,
   Easing,
 } from "react-native-reanimated";
-import { useHeaderHeight } from "@react-navigation/elements";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
@@ -36,7 +35,6 @@ const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
 export default function EmailAuthScreen() {
   const insets = useSafeAreaInsets();
-  const headerHeight = useHeaderHeight();
   const navigation = useNavigation<NavigationProp>();
   const [email, setEmail] = useState("");
   const inputRef = useRef<TextInput>(null);
@@ -57,6 +55,11 @@ export default function EmailAuthScreen() {
     opacity: contentOpacity.value,
   }));
 
+  const handleBack = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    navigation.goBack();
+  };
+
   const handleNext = () => {
     if (isValidEmail) {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -71,52 +74,57 @@ export default function EmailAuthScreen() {
   };
 
   return (
-    <KeyboardAwareScrollView
-      style={[styles.container]}
-      contentContainerStyle={[
-        styles.contentContainer,
-        {
-          paddingTop: headerHeight + Spacing["2xl"],
-          paddingBottom: insets.bottom + Spacing["3xl"],
-        },
-      ]}
-      keyboardShouldPersistTaps="handled"
-    >
-      <Animated.View style={[styles.content, contentStyle]}>
-        <ThemedText style={styles.title}>
-          Where can we send your{"\n"}confirmation link?
-        </ThemedText>
-        <ThemedText style={styles.subtitle}>
-          Enter a real email address. Don't worry — no one else will see it.
-        </ThemedText>
-
-        <View style={styles.inputContainer}>
-          <TextInput
-            ref={inputRef}
-            style={styles.input}
-            value={email}
-            onChangeText={setEmail}
-            placeholder="Email"
-            placeholderTextColor={ObimoColors.textSecondary}
-            keyboardType="email-address"
-            autoCapitalize="none"
-            autoCorrect={false}
-            autoComplete="email"
-            testID="input-email"
-          />
-          {email.length > 0 ? (
-            <Pressable onPress={handleClear} style={styles.clearButton}>
-              <MaterialCommunityIcons name="close" size={18} color={ObimoColors.textSecondary} />
-            </Pressable>
-          ) : null}
-        </View>
-        <View style={styles.inputDivider} />
-      </Animated.View>
-
-      <View style={styles.buttonContainer}>
-        <NextButton onPress={handleNext} disabled={!isValidEmail} />
+    <View style={[styles.container, { paddingTop: insets.top }]}>
+      <View style={styles.header}>
+        <Pressable style={styles.backButton} onPress={handleBack}>
+          <MaterialCommunityIcons name="arrow-left" size={24} color={ObimoColors.textPrimary} />
+        </Pressable>
       </View>
-    </KeyboardAwareScrollView>
+
+      <KeyboardAwareScrollView
+        style={styles.scrollView}
+        contentContainerStyle={[
+          styles.contentContainer,
+          { paddingBottom: insets.bottom + Spacing["3xl"] },
+        ]}
+        keyboardShouldPersistTaps="handled"
+      >
+        <Animated.View style={[styles.content, contentStyle]}>
+          <ThemedText style={styles.title}>
+            Where can we send your{"\n"}confirmation link?
+          </ThemedText>
+          <ThemedText style={styles.subtitle}>
+            Enter a real email address. Don't worry — no one else will see it.
+          </ThemedText>
+
+          <View style={styles.inputContainer}>
+            <TextInput
+              ref={inputRef}
+              style={styles.input}
+              value={email}
+              onChangeText={setEmail}
+              placeholder="Email"
+              placeholderTextColor={ObimoColors.textSecondary}
+              keyboardType="email-address"
+              autoCapitalize="none"
+              autoCorrect={false}
+              autoComplete="email"
+              testID="input-email"
+            />
+            {email.length > 0 ? (
+              <Pressable onPress={handleClear} style={styles.clearButton}>
+                <MaterialCommunityIcons name="close-circle" size={20} color={ObimoColors.textSecondary} />
+              </Pressable>
+            ) : null}
+          </View>
+          <View style={styles.inputDivider} />
+        </Animated.View>
+
+        <View style={styles.buttonContainer}>
+          <NextButton onPress={handleNext} disabled={!isValidEmail} />
+        </View>
+      </KeyboardAwareScrollView>
+    </View>
   );
 }
 
@@ -157,12 +165,27 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#FFFFFF",
   },
+  header: {
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
+  },
+  backButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  scrollView: {
+    flex: 1,
+  },
   contentContainer: {
     flexGrow: 1,
     paddingHorizontal: Spacing["2xl"],
   },
   content: {
     flex: 1,
+    paddingTop: Spacing.xl,
   },
   title: {
     ...Typography.h2,

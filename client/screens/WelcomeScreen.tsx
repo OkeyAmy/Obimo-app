@@ -22,16 +22,12 @@ export default function WelcomeScreen() {
 
   useEffect(() => {
     async function loadVideo() {
-      if (Platform.OS === "web") {
-        setVideoUri("https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4");
-      } else {
-        try {
-          const asset = Asset.fromModule(require("../../assets/videos/onboarding.mp4"));
-          await asset.downloadAsync();
-          setVideoUri(asset.localUri || asset.uri);
-        } catch {
-          setVideoUri("https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4");
-        }
+      try {
+        const asset = Asset.fromModule(require("../../assets/videos/onboarding.mp4"));
+        await asset.downloadAsync();
+        setVideoUri(asset.localUri || asset.uri);
+      } catch (error) {
+        console.log("Video load error:", error);
       }
     }
     loadVideo();
@@ -65,7 +61,9 @@ export default function WelcomeScreen() {
           />
           <View style={styles.videoOverlay} />
         </View>
-      ) : null}
+      ) : (
+        <View style={[styles.videoContainer, styles.fallbackBackground]} />
+      )}
 
       <View style={[styles.content, { paddingTop: insets.top, paddingBottom: insets.bottom + Spacing["3xl"] }]}>
         <View style={styles.logoSection}>
@@ -156,6 +154,9 @@ const styles = StyleSheet.create({
   },
   videoContainer: {
     ...StyleSheet.absoluteFillObject,
+  },
+  fallbackBackground: {
+    backgroundColor: "#1a1a1a",
   },
   video: {
     flex: 1,
