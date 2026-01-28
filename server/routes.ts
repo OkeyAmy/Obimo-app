@@ -7,6 +7,24 @@ if (process.env.SENDGRID_API_KEY) {
   sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 }
 
+// In-memory store for verification codes (in production, use Redis or database)
+const verificationCodes: Map<string, { code: string; expiresAt: number }> = new Map();
+
+// Generate a 6-digit code
+function generateVerificationCode(): string {
+  return Math.floor(100000 + Math.random() * 900000).toString();
+}
+
+// Clean up expired codes periodically
+setInterval(() => {
+  const now = Date.now();
+  for (const [email, data] of verificationCodes.entries()) {
+    if (data.expiresAt < now) {
+      verificationCodes.delete(email);
+    }
+  }
+}, 60000); // Clean every minute
+
 interface ReplitUser {
   id: string;
   name: string;
@@ -251,7 +269,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.json({ success: true });
   });
 
-  // Email signup with SendGrid
+  // Email signup - send 6-digit verification code
   app.post("/api/auth/email/signup", async (req: Request, res: Response) => {
     const { email } = req.body;
     
@@ -259,17 +277,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return res.status(400).json({ error: "Invalid email" });
     }
 
-    // Generate a simple confirmation token
-    const token = Buffer.from(`${email}:${Date.now()}`).toString("base64");
-    const confirmUrl = `${req.protocol}://${req.get("host")}/auth/confirm?token=${token}`;
+    // Generate a 6-digit code
+    const code = generateVerificationCode();
+    
+    // Store with 10-minute expiration
+    verificationCodes.set(email.toLowerCase(), {
+      code,
+      expiresAt: Date.now() + 10 * 60 * 1000,
+    });
+
+    console.log(`Generated verification code for ${email}: ${code}`);
 
     try {
       if (process.env.SENDGRID_API_KEY) {
         const msg = {
           to: email,
           from: "amaobiokeoma@gmail.com",
-          subject: "Confirm your Obimo account",
-          text: `Welcome to Obimo!\n\nClick this link to confirm your email: ${confirmUrl}\n\nIf you didn't sign up for Obimo, you can ignore this email.`,
+          subject: `${code} is your Obimo verification code`,
+          text: `Your Obimo verification code is: ${code}\n\nThis code will expire in 10 minutes.\n\nIf you didn't request this code, you can safely ignore this email.`,
           html: `
             <!DOCTYPE html>
             <html>
@@ -280,15 +305,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
             <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #E8E8E8; padding: 40px 20px; margin: 0;">
               <div style="max-width: 400px; margin: 0 auto; background: white; border-radius: 20px; padding: 40px 30px; text-align: center;">
                 <h1 style="font-family: Georgia, serif; font-size: 32px; color: #2D3142; margin: 0 0 24px 0;">Obimo</h1>
-                <h2 style="color: #2D3142; font-size: 20px; margin: 0 0 16px 0;">Confirm your email</h2>
-                <p style="color: #6B7280; font-size: 14px; line-height: 1.6; margin: 0 0 24px 0;">
-                  Welcome to Obimo! Click the button below to confirm your email address and start connecting with fellow travelers.
+                <h2 style="color: #2D3142; font-size: 20px; margin: 0 0 16px 0;">Your verification code</h2>
+                <div style="background: #F3F4F6; border-radius: 12px; padding: 20px; margin: 0 0 24px 0;">
+                  <span style="font-size: 36px; font-weight: 700; color: #2D3142; letter-spacing: 8px;">${code}</span>
+                </div>
+                <p style="color: #6B7280; font-size: 14px; line-height: 1.6; margin: 0 0 16px 0;">
+                  Enter this code in the app to verify your email address.
                 </p>
-                <a href="${confirmUrl}" style="display: inline-block; background: #2D3142; color: white; text-decoration: none; padding: 16px 32px; border-radius: 100px; font-size: 16px; font-weight: 600;">
-                  Confirm Email
-                </a>
-                <p style="color: #9CA3AF; font-size: 12px; margin: 24px 0 0 0;">
-                  If you didn't sign up for Obimo, you can safely ignore this email.
+                <p style="color: #9CA3AF; font-size: 12px; margin: 0;">
+                  This code expires in 10 minutes. If you didn't request this, you can ignore this email.
                 </p>
               </div>
             </body>
@@ -297,26 +322,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
         };
 
         await sgMail.send(msg);
-        console.log(`Confirmation email sent to: ${email}`);
+        console.log(`Verification code email sent to: ${email}`);
       } else {
-        console.log(`[DEV] Would send confirmation email to: ${email}`);
-        console.log(`[DEV] Confirm URL: ${confirmUrl}`);
+        console.log(`[DEV] Would send verification code ${code} to: ${email}`);
       }
       
       res.json({ 
         success: true, 
-        message: "Confirmation email sent" 
+        message: "Verification code sent" 
       });
     } catch (error: any) {
       console.error("SendGrid error:", error.response?.body || error.message);
       res.status(500).json({ 
-        error: "Failed to send confirmation email",
+        error: "Failed to send verification code",
         details: error.message 
       });
     }
   });
 
-  // Resend email confirmation with SendGrid
+  // Resend verification code
   app.post("/api/auth/email/resend", async (req: Request, res: Response) => {
     const { email } = req.body;
     
@@ -324,16 +348,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return res.status(400).json({ error: "Invalid email" });
     }
 
-    const token = Buffer.from(`${email}:${Date.now()}`).toString("base64");
-    const confirmUrl = `${req.protocol}://${req.get("host")}/auth/confirm?token=${token}`;
+    // Generate a new 6-digit code
+    const code = generateVerificationCode();
+    
+    // Store with 10-minute expiration
+    verificationCodes.set(email.toLowerCase(), {
+      code,
+      expiresAt: Date.now() + 10 * 60 * 1000,
+    });
+
+    console.log(`Regenerated verification code for ${email}: ${code}`);
 
     try {
       if (process.env.SENDGRID_API_KEY) {
         const msg = {
           to: email,
           from: "amaobiokeoma@gmail.com",
-          subject: "Confirm your Obimo account",
-          text: `Welcome to Obimo!\n\nClick this link to confirm your email: ${confirmUrl}\n\nIf you didn't sign up for Obimo, you can ignore this email.`,
+          subject: `${code} is your Obimo verification code`,
+          text: `Your Obimo verification code is: ${code}\n\nThis code will expire in 10 minutes.\n\nIf you didn't request this code, you can safely ignore this email.`,
           html: `
             <!DOCTYPE html>
             <html>
@@ -344,15 +376,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
             <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #E8E8E8; padding: 40px 20px; margin: 0;">
               <div style="max-width: 400px; margin: 0 auto; background: white; border-radius: 20px; padding: 40px 30px; text-align: center;">
                 <h1 style="font-family: Georgia, serif; font-size: 32px; color: #2D3142; margin: 0 0 24px 0;">Obimo</h1>
-                <h2 style="color: #2D3142; font-size: 20px; margin: 0 0 16px 0;">Confirm your email</h2>
-                <p style="color: #6B7280; font-size: 14px; line-height: 1.6; margin: 0 0 24px 0;">
-                  Welcome to Obimo! Click the button below to confirm your email address and start connecting with fellow travelers.
+                <h2 style="color: #2D3142; font-size: 20px; margin: 0 0 16px 0;">Your verification code</h2>
+                <div style="background: #F3F4F6; border-radius: 12px; padding: 20px; margin: 0 0 24px 0;">
+                  <span style="font-size: 36px; font-weight: 700; color: #2D3142; letter-spacing: 8px;">${code}</span>
+                </div>
+                <p style="color: #6B7280; font-size: 14px; line-height: 1.6; margin: 0 0 16px 0;">
+                  Enter this code in the app to verify your email address.
                 </p>
-                <a href="${confirmUrl}" style="display: inline-block; background: #2D3142; color: white; text-decoration: none; padding: 16px 32px; border-radius: 100px; font-size: 16px; font-weight: 600;">
-                  Confirm Email
-                </a>
-                <p style="color: #9CA3AF; font-size: 12px; margin: 24px 0 0 0;">
-                  If you didn't sign up for Obimo, you can safely ignore this email.
+                <p style="color: #9CA3AF; font-size: 12px; margin: 0;">
+                  This code expires in 10 minutes. If you didn't request this, you can ignore this email.
                 </p>
               </div>
             </body>
@@ -361,109 +393,60 @@ export async function registerRoutes(app: Express): Promise<Server> {
         };
 
         await sgMail.send(msg);
-        console.log(`Confirmation email resent to: ${email}`);
+        console.log(`Verification code resent to: ${email}`);
       } else {
-        console.log(`[DEV] Would resend confirmation email to: ${email}`);
+        console.log(`[DEV] Would resend verification code ${code} to: ${email}`);
       }
       
       res.json({ 
         success: true, 
-        message: "Confirmation email resent" 
+        message: "Verification code resent" 
       });
     } catch (error: any) {
       console.error("SendGrid error:", error.response?.body || error.message);
       res.status(500).json({ 
-        error: "Failed to resend confirmation email",
+        error: "Failed to resend verification code",
         details: error.message 
       });
     }
   });
 
-  // Email confirmation handler
-  app.get("/auth/confirm", (req: Request, res: Response) => {
-    const token = req.query.token as string;
+  // Verify the 6-digit code
+  app.post("/api/auth/email/verify", (req: Request, res: Response) => {
+    const { email, code } = req.body;
     
-    if (!token) {
-      return res.status(400).send("Invalid confirmation link");
+    if (!email || !code) {
+      return res.status(400).json({ error: "Email and code are required" });
     }
 
-    try {
-      const decoded = Buffer.from(token, "base64").toString("utf8");
-      const [email] = decoded.split(":");
-      
-      // In a real app, you'd verify and activate the account here
-      res.send(`
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <meta name="viewport" content="width=device-width, initial-scale=1">
-          <title>Email Confirmed - Obimo</title>
-          <style>
-            * { box-sizing: border-box; }
-            body {
-              font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-              display: flex;
-              align-items: center;
-              justify-content: center;
-              min-height: 100vh;
-              margin: 0;
-              background: #E8E8E8;
-              padding: 20px;
-            }
-            .container {
-              text-align: center;
-              padding: 40px 30px;
-              background: white;
-              border-radius: 20px;
-              box-shadow: 0 4px 20px rgba(0,0,0,0.1);
-              max-width: 340px;
-              width: 100%;
-            }
-            .check {
-              width: 64px;
-              height: 64px;
-              background: #10B981;
-              border-radius: 50%;
-              display: flex;
-              align-items: center;
-              justify-content: center;
-              margin: 0 auto 20px;
-            }
-            .check svg {
-              width: 32px;
-              height: 32px;
-              stroke: white;
-              stroke-width: 3;
-              fill: none;
-            }
-            h1 { 
-              color: #2D3142; 
-              font-size: 24px;
-              margin: 0 0 8px 0;
-            }
-            p { 
-              color: #6B7280;
-              margin: 0;
-              font-size: 14px;
-            }
-          </style>
-        </head>
-        <body>
-          <div class="container">
-            <div class="check">
-              <svg viewBox="0 0 24 24">
-                <polyline points="20 6 9 17 4 12"></polyline>
-              </svg>
-            </div>
-            <h1>Email Confirmed!</h1>
-            <p>Your email ${email} has been verified. You can now return to the app and sign in.</p>
-          </div>
-        </body>
-        </html>
-      `);
-    } catch (error) {
-      res.status(400).send("Invalid confirmation link");
+    const stored = verificationCodes.get(email.toLowerCase());
+    
+    if (!stored) {
+      return res.status(400).json({ error: "No verification code found. Please request a new one." });
     }
+    
+    if (stored.expiresAt < Date.now()) {
+      verificationCodes.delete(email.toLowerCase());
+      return res.status(400).json({ error: "Verification code expired. Please request a new one." });
+    }
+    
+    if (stored.code !== code) {
+      return res.status(400).json({ error: "Invalid verification code" });
+    }
+    
+    // Code is valid - remove it so it can't be reused
+    verificationCodes.delete(email.toLowerCase());
+    
+    console.log(`Email verified successfully: ${email}`);
+    
+    res.json({ 
+      success: true, 
+      message: "Email verified successfully",
+      user: {
+        email: email.toLowerCase(),
+        verified: true,
+      }
+    });
   });
 
   const httpServer = createServer(app);
