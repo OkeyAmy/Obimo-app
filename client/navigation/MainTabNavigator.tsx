@@ -22,13 +22,13 @@ export default function MainTabNavigator() {
     <Tab.Navigator
       initialRouteName="HomeTab"
       screenOptions={{
-        tabBarActiveTintColor: ObimoColors.primary,
-        tabBarInactiveTintColor: theme.tabIconDefault,
+        tabBarActiveTintColor: ObimoColors.textPrimary,
+        tabBarInactiveTintColor: ObimoColors.textSecondary,
         tabBarStyle: {
           position: "absolute",
           backgroundColor: Platform.select({
             ios: "transparent",
-            android: ObimoColors.background,
+            android: "#FFFFFF",
           }),
           borderTopWidth: 0,
           elevation: 0,

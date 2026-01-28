@@ -1,20 +1,23 @@
 import { Platform } from "react-native";
 
 export const ObimoColors = {
-  primary: "#FF6B35",
-  secondary: "#004E89",
-  background: "#FFFBF5",
+  primary: "#2D3142",
+  secondary: "#4A4A4A",
+  background: "#E8E8E8",
   surface: "#FFFFFF",
   textPrimary: "#2D3142",
   textSecondary: "#6B7280",
-  accent: "#F4A261",
+  accent: "#2D3142",
   success: "#06A77D",
   link: "#0066C4",
   error: "#DC2626",
+  buttonDark: "#2D3142",
+  buttonLight: "rgba(0, 0, 0, 0.08)",
+  overlay: "rgba(0, 0, 0, 0.35)",
 };
 
 const tintColorLight = ObimoColors.primary;
-const tintColorDark = "#FF8555";
+const tintColorDark = "#FFFFFF";
 
 export const Colors = {
   light: {
@@ -31,8 +34,8 @@ export const Colors = {
     error: ObimoColors.error,
     backgroundRoot: ObimoColors.background,
     backgroundDefault: ObimoColors.surface,
-    backgroundSecondary: "#F5F0EB",
-    backgroundTertiary: "#EBE6E1",
+    backgroundSecondary: "#F5F5F5",
+    backgroundTertiary: "#E0E0E0",
     border: "#E5E7EB",
   },
   dark: {
@@ -41,10 +44,10 @@ export const Colors = {
     buttonText: "#FFFFFF",
     tabIconDefault: "#9BA1A6",
     tabIconSelected: tintColorDark,
-    link: tintColorDark,
-    primary: tintColorDark,
-    secondary: "#3A7AB8",
-    accent: "#F4A261",
+    link: "#FFFFFF",
+    primary: "#FFFFFF",
+    secondary: "#CCCCCC",
+    accent: "#FFFFFF",
     success: "#06A77D",
     error: "#EF4444",
     backgroundRoot: "#1F2123",

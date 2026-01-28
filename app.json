@@ -15,7 +15,7 @@
     "android": {
       "package": "com.obimo.app",
       "adaptiveIcon": {
-        "backgroundColor": "#FFFBF5",
+        "backgroundColor": "#E8E8E8",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
@@ -34,7 +34,7 @@
           "image": "./assets/images/splash-icon.png",
           "imageWidth": 200,
           "resizeMode": "contain",
-          "backgroundColor": "#FFFBF5",
+          "backgroundColor": "#E8E8E8",
           "dark": {
             "backgroundColor": "#1F2123"
           }

@@ -1,18 +1,15 @@
 import React, { useEffect } from "react";
-import { View, StyleSheet } from "react-native";
-import { Text } from "react-native";
+import { View, StyleSheet, Text } from "react-native";
 import Animated, {
   useAnimatedStyle,
   useSharedValue,
   withTiming,
-  withDelay,
   Easing,
 } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { RootStackParamList } from "@/navigation/RootStackNavigator";
-import { ObimoColors } from "@/constants/theme";
 
 type SplashScreenNavigationProp = NativeStackNavigationProp<
   RootStackParamList,
@@ -23,22 +20,19 @@ export default function SplashScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<SplashScreenNavigationProp>();
   const opacity = useSharedValue(0);
-  const scale = useSharedValue(0.8);
 
   useEffect(() => {
-    opacity.value = withTiming(1, { duration: 800, easing: Easing.out(Easing.cubic) });
-    scale.value = withTiming(1, { duration: 800, easing: Easing.out(Easing.cubic) });
+    opacity.value = withTiming(1, { duration: 600, easing: Easing.out(Easing.cubic) });
 
     const timer = setTimeout(() => {
       navigation.replace("Welcome");
     }, 2000);
 
     return () => clearTimeout(timer);
-  }, [navigation, opacity, scale]);
+  }, [navigation, opacity]);
 
   const animatedStyle = useAnimatedStyle(() => ({
     opacity: opacity.value,
-    transform: [{ scale: scale.value }],
   }));
 
   return (
@@ -53,14 +47,14 @@ export default function SplashScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: ObimoColors.background,
+    backgroundColor: "#E8E8E8",
     alignItems: "center",
     justifyContent: "center",
   },
   logo: {
     fontFamily: "Fascinate_400Regular",
-    fontSize: 56,
-    color: ObimoColors.primary,
+    fontSize: 72,
+    color: "#2D3142",
     letterSpacing: 2,
   },
 });

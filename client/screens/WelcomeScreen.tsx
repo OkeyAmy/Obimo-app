@@ -1,56 +1,30 @@
-import React, { useState, useEffect } from "react";
-import { View, StyleSheet, Image, Pressable, Dimensions, Text } from "react-native";
+import React, { useState } from "react";
+import { View, StyleSheet, Pressable, Text } from "react-native";
 import Animated, {
   useAnimatedStyle,
   useSharedValue,
-  withTiming,
-  withDelay,
   withSpring,
-  Easing,
 } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useVideoPlayer, VideoView } from "expo-video";
 import { ThemedText } from "@/components/ThemedText";
 import { ObimoColors, Spacing, BorderRadius, Typography } from "@/constants/theme";
 import { AuthBottomSheet } from "@/components/AuthBottomSheet";
 
-const { width, height } = Dimensions.get("window");
-
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
+
+const VIDEO_URL = "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4";
 
 export default function WelcomeScreen() {
   const insets = useSafeAreaInsets();
   const [showAuthSheet, setShowAuthSheet] = useState(false);
   const [authMode, setAuthMode] = useState<"join" | "login">("join");
 
-  const heroOpacity = useSharedValue(0);
-  const heroTranslateY = useSharedValue(20);
-  const contentOpacity = useSharedValue(0);
-  const buttonsOpacity = useSharedValue(0);
-  const buttonsTranslateY = useSharedValue(30);
-
-  useEffect(() => {
-    heroOpacity.value = withTiming(1, { duration: 600, easing: Easing.out(Easing.cubic) });
-    heroTranslateY.value = withTiming(0, { duration: 600, easing: Easing.out(Easing.cubic) });
-    
-    contentOpacity.value = withDelay(200, withTiming(1, { duration: 500 }));
-    
-    buttonsOpacity.value = withDelay(400, withTiming(1, { duration: 500 }));
-    buttonsTranslateY.value = withDelay(400, withTiming(0, { duration: 500, easing: Easing.out(Easing.cubic) }));
-  }, []);
-
-  const heroStyle = useAnimatedStyle(() => ({
-    opacity: heroOpacity.value,
-    transform: [{ translateY: heroTranslateY.value }],
-  }));
-
-  const contentStyle = useAnimatedStyle(() => ({
-    opacity: contentOpacity.value,
-  }));
-
-  const buttonsStyle = useAnimatedStyle(() => ({
-    opacity: buttonsOpacity.value,
-    transform: [{ translateY: buttonsTranslateY.value }],
-  }));
+  const player = useVideoPlayer(VIDEO_URL, (player) => {
+    player.loop = true;
+    player.muted = true;
+    player.play();
+  });
 
   const handleJoin = () => {
     setAuthMode("join");
@@ -63,32 +37,33 @@ export default function WelcomeScreen() {
   };
 
   return (
-    <View style={[styles.container, { paddingBottom: insets.bottom }]}>
-      <Animated.View style={[styles.heroContainer, heroStyle]}>
-        <Image
-          source={require("../../assets/images/welcome-hero.png")}
-          style={styles.heroImage}
-          resizeMode="cover"
+    <View style={styles.container}>
+      <View style={styles.videoContainer}>
+        <VideoView
+          style={styles.video}
+          player={player}
+          contentFit="cover"
+          nativeControls={false}
         />
-        <View style={styles.heroOverlay} />
-        <View style={[styles.logoContainer, { paddingTop: insets.top + Spacing.xl }]}>
+        <View style={styles.videoOverlay} />
+      </View>
+
+      <View style={[styles.content, { paddingTop: insets.top, paddingBottom: insets.bottom + Spacing["3xl"] }]}>
+        <View style={styles.logoSection}>
           <Text style={styles.logo}>Obimo</Text>
         </View>
-      </Animated.View>
 
-      <Animated.View style={[styles.contentContainer, contentStyle]}>
-        <ThemedText style={styles.tagline}>
-          Connect with fellow nomads
-        </ThemedText>
-        <ThemedText style={styles.subtitle}>
-          Find travel companions, share adventures, and explore together.
-        </ThemedText>
-      </Animated.View>
+        <View style={styles.bottomSection}>
+          <ThemedText style={styles.tagline}>
+            A travel app for the curious
+          </ThemedText>
 
-      <Animated.View style={[styles.buttonsContainer, buttonsStyle]}>
-        <PrimaryButton onPress={handleJoin} label="Join Obimo" />
-        <SecondaryButton onPress={handleLogin} label="Log in" />
-      </Animated.View>
+          <View style={styles.buttonsContainer}>
+            <PrimaryButton onPress={handleJoin} label="Join Obimo" />
+            <SecondaryButton onPress={handleLogin} label="Log in" />
+          </View>
+        </View>
+      </View>
 
       <AuthBottomSheet
         visible={showAuthSheet}
@@ -158,60 +133,52 @@ function SecondaryButton({ onPress, label }: { onPress: () => void; label: strin
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: ObimoColors.background,
+    backgroundColor: "#000000",
   },
-  heroContainer: {
-    flex: 1,
-    position: "relative",
-  },
-  heroImage: {
-    width: "100%",
-    height: "100%",
-    position: "absolute",
-  },
-  heroOverlay: {
+  videoContainer: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(0, 0, 0, 0.3)",
   },
-  logoContainer: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
+  video: {
+    flex: 1,
+  },
+  videoOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0, 0, 0, 0.25)",
+  },
+  content: {
+    flex: 1,
+    justifyContent: "space-between",
+    paddingHorizontal: Spacing["2xl"],
+  },
+  logoSection: {
+    flex: 1,
     alignItems: "center",
+    justifyContent: "center",
   },
   logo: {
     fontFamily: "Fascinate_400Regular",
-    fontSize: 48,
+    fontSize: 56,
     color: "#FFFFFF",
     textShadowColor: "rgba(0, 0, 0, 0.3)",
     textShadowOffset: { width: 0, height: 2 },
     textShadowRadius: 4,
   },
-  contentContainer: {
-    paddingHorizontal: Spacing["2xl"],
-    paddingTop: Spacing["3xl"],
-    paddingBottom: Spacing.lg,
+  bottomSection: {
+    alignItems: "center",
   },
   tagline: {
-    ...Typography.h2,
-    color: ObimoColors.textPrimary,
-    textAlign: "center",
-    marginBottom: Spacing.sm,
-  },
-  subtitle: {
     ...Typography.body,
-    color: ObimoColors.textSecondary,
+    color: "#FFFFFF",
     textAlign: "center",
+    marginBottom: Spacing["2xl"],
   },
   buttonsContainer: {
-    paddingHorizontal: Spacing["2xl"],
-    paddingBottom: Spacing["3xl"],
+    width: "100%",
     gap: Spacing.md,
   },
   primaryButton: {
     height: Spacing.buttonHeight,
-    backgroundColor: ObimoColors.primary,
+    backgroundColor: ObimoColors.buttonDark,
     borderRadius: BorderRadius.full,
     alignItems: "center",
     justifyContent: "center",
@@ -223,7 +190,7 @@ const styles = StyleSheet.create({
   },
   secondaryButton: {
     height: Spacing.buttonHeight,
-    backgroundColor: "rgba(0, 0, 0, 0.08)",
+    backgroundColor: "rgba(255, 255, 255, 0.85)",
     borderRadius: BorderRadius.full,
     alignItems: "center",
     justifyContent: "center",

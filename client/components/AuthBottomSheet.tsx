@@ -4,8 +4,6 @@ import {
   StyleSheet,
   Pressable,
   Modal,
-  Dimensions,
-  Platform,
 } from "react-native";
 import Animated, {
   useAnimatedStyle,
@@ -32,7 +30,6 @@ import {
 } from "@/constants/theme";
 import { RootStackParamList } from "@/navigation/RootStackNavigator";
 
-const { height: SCREEN_HEIGHT, width: SCREEN_WIDTH } = Dimensions.get("window");
 const SHEET_HEIGHT = 420;
 
 interface AuthBottomSheetProps {
@@ -131,15 +128,14 @@ export function AuthBottomSheet({ visible, onClose, mode }: AuthBottomSheetProps
             </View>
 
             <ThemedText style={styles.title}>
-              {mode === "join" ? "Join Obimo" : "Log in to Obimo"}
+              {mode === "join" ? "Join Obimo" : "Log in"}
             </ThemedText>
 
             <ThemedText style={styles.termsText}>
               By continuing, you accept our{" "}
               <ThemedText style={styles.linkText}>Terms of Use</ThemedText>. Please also
               see our{" "}
-              <ThemedText style={styles.linkText}>Privacy Policy</ThemedText> which
-              defines how we use your personal information.
+              <ThemedText style={styles.linkText}>Privacy Policy</ThemedText>.
             </ThemedText>
 
             <View style={styles.buttonsContainer}>
@@ -154,9 +150,6 @@ export function AuthBottomSheet({ visible, onClose, mode }: AuthBottomSheetProps
                 label="Apple"
                 onPress={handleApplePress}
                 variant="secondary"
-                customIcon={
-                  <Feather name="smartphone" size={20} color={ObimoColors.textPrimary} />
-                }
               />
               <AuthButton
                 icon="chrome"
@@ -165,7 +158,6 @@ export function AuthBottomSheet({ visible, onClose, mode }: AuthBottomSheetProps
                 variant="secondary"
               />
               <AuthButton
-                icon="x"
                 label="Cancel"
                 onPress={handleCancelPress}
                 variant="cancel"
@@ -179,14 +171,13 @@ export function AuthBottomSheet({ visible, onClose, mode }: AuthBottomSheetProps
 }
 
 interface AuthButtonProps {
-  icon: string;
+  icon?: string;
   label: string;
   onPress: () => void;
   variant: "primary" | "secondary" | "cancel";
-  customIcon?: React.ReactNode;
 }
 
-function AuthButton({ icon, label, onPress, variant, customIcon }: AuthButtonProps) {
+function AuthButton({ icon, label, onPress, variant }: AuthButtonProps) {
   const scale = useSharedValue(1);
 
   const animatedStyle = useAnimatedStyle(() => ({
@@ -243,13 +234,11 @@ function AuthButton({ icon, label, onPress, variant, customIcon }: AuthButtonPro
       testID={`button-auth-${label.toLowerCase()}`}
     >
       <View style={styles.authButtonContent}>
-        {label !== "Cancel" && (
+        {icon ? (
           <View style={styles.iconContainer}>
-            {customIcon || (
-              <Feather name={icon as any} size={20} color={getIconColor()} />
-            )}
+            <Feather name={icon as any} size={20} color={getIconColor()} />
           </View>
-        )}
+        ) : null}
         <ThemedText style={[styles.authButtonText, { color: getTextColor() }]}>
           {label}
         </ThemedText>
@@ -281,7 +270,7 @@ const styles = StyleSheet.create({
   handle: {
     width: 40,
     height: 4,
-    backgroundColor: "#E5E7EB",
+    backgroundColor: "#D1D5DB",
     borderRadius: 2,
   },
   title: {
@@ -307,7 +296,7 @@ const styles = StyleSheet.create({
   },
   primaryAuthButton: {
     height: Spacing.buttonHeight,
-    backgroundColor: ObimoColors.textPrimary,
+    backgroundColor: ObimoColors.buttonDark,
     borderRadius: BorderRadius.full,
     justifyContent: "center",
     alignItems: "center",

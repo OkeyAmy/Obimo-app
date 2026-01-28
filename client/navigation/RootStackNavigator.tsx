@@ -1,13 +1,11 @@
 import React from "react";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
-import { Feather } from "@expo/vector-icons";
 
 import MainTabNavigator from "@/navigation/MainTabNavigator";
 import SplashScreen from "@/screens/SplashScreen";
 import WelcomeScreen from "@/screens/WelcomeScreen";
 import EmailAuthScreen from "@/screens/EmailAuthScreen";
 import EmailConfirmationScreen from "@/screens/EmailConfirmationScreen";
-import VideoOnboardingScreen from "@/screens/VideoOnboardingScreen";
 import ModalScreen from "@/screens/ModalScreen";
 import { useScreenOptions } from "@/hooks/useScreenOptions";
 import { ObimoColors } from "@/constants/theme";
@@ -17,7 +15,6 @@ export type RootStackParamList = {
   Welcome: undefined;
   EmailAuth: undefined;
   EmailConfirmation: { email: string };
-  VideoOnboarding: undefined;
   Main: undefined;
   Modal: undefined;
 };
@@ -63,14 +60,6 @@ export default function RootStackNavigator() {
         options={{
           headerShown: false,
           presentation: "fullScreenModal",
-        }}
-      />
-      <Stack.Screen
-        name="VideoOnboarding"
-        component={VideoOnboardingScreen}
-        options={{
-          headerShown: false,
-          animation: "fade",
         }}
       />
       <Stack.Screen

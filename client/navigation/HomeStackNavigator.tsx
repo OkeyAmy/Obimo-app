@@ -43,6 +43,6 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontFamily: "Fascinate_400Regular",
     fontSize: 24,
-    color: ObimoColors.primary,
+    color: ObimoColors.textPrimary,
   },
 });

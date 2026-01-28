@@ -2,26 +2,24 @@ import React, { useEffect } from "react";
 import {
   View,
   StyleSheet,
-  Image,
   Pressable,
   Platform,
   Linking,
+  ActionSheetIOS,
 } from "react-native";
 import Animated, {
   useAnimatedStyle,
   useSharedValue,
   withTiming,
   withSpring,
-  withRepeat,
-  withSequence,
   Easing,
 } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useHeaderHeight } from "@react-navigation/elements";
 import { useRoute, RouteProp, useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import * as Haptics from "expo-haptics";
 import { Feather } from "@expo/vector-icons";
+import Svg, { Circle, Path } from "react-native-svg";
 
 import { ThemedText } from "@/components/ThemedText";
 import {
@@ -37,33 +35,41 @@ type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
+function LinkIcon() {
+  return (
+    <Svg width={180} height={120} viewBox="0 0 180 120">
+      <Circle
+        cx="55"
+        cy="60"
+        r="40"
+        stroke="#2D3142"
+        strokeWidth="4"
+        fill="none"
+      />
+      <Circle
+        cx="125"
+        cy="60"
+        r="40"
+        stroke="#2D3142"
+        strokeWidth="4"
+        fill="none"
+      />
+    </Svg>
+  );
+}
+
 export default function EmailConfirmationScreen() {
   const insets = useSafeAreaInsets();
-  const headerHeight = useHeaderHeight();
   const route = useRoute<RouteType>();
   const navigation = useNavigation<NavigationProp>();
   const { email } = route.params;
 
   const contentOpacity = useSharedValue(0);
-  const contentScale = useSharedValue(0.9);
-  const iconRotation = useSharedValue(0);
+  const contentScale = useSharedValue(0.95);
 
   useEffect(() => {
     contentOpacity.value = withTiming(1, { duration: 500, easing: Easing.out(Easing.cubic) });
     contentScale.value = withSpring(1, { damping: 15, stiffness: 100 });
-    
-    iconRotation.value = withSequence(
-      withTiming(-5, { duration: 100 }),
-      withRepeat(
-        withSequence(
-          withTiming(5, { duration: 200 }),
-          withTiming(-5, { duration: 200 })
-        ),
-        2,
-        true
-      ),
-      withTiming(0, { duration: 100 })
-    );
   }, []);
 
   const contentStyle = useAnimatedStyle(() => ({
@@ -71,24 +77,34 @@ export default function EmailConfirmationScreen() {
     transform: [{ scale: contentScale.value }],
   }));
 
-  const iconStyle = useAnimatedStyle(() => ({
-    transform: [{ rotate: `${iconRotation.value}deg` }],
-  }));
-
   const handleOpenEmailApp = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     
     if (Platform.OS === "ios") {
-      try {
-        await Linking.openURL("message://");
-      } catch {
-        try {
-          await Linking.openURL("googlegmail://");
-        } catch {
-          console.log("Could not open email app");
+      ActionSheetIOS.showActionSheetWithOptions(
+        {
+          title: "Open mail app",
+          message: "Which app would you like to open?",
+          options: ["Cancel", "Mail", "Gmail"],
+          cancelButtonIndex: 0,
+        },
+        async (buttonIndex) => {
+          if (buttonIndex === 1) {
+            try {
+              await Linking.openURL("message://");
+            } catch {
+              console.log("Could not open Mail app");
+            }
+          } else if (buttonIndex === 2) {
+            try {
+              await Linking.openURL("googlegmail://");
+            } catch {
+              console.log("Could not open Gmail app");
+            }
+          }
         }
-      }
-    } else if (Platform.OS === "android") {
+      );
+    } else {
       try {
         await Linking.openURL("mailto:");
       } catch {
@@ -110,23 +126,19 @@ export default function EmailConfirmationScreen() {
       style={[
         styles.container,
         {
-          paddingTop: headerHeight + Spacing.xl,
+          paddingTop: insets.top + Spacing["4xl"],
           paddingBottom: insets.bottom + Spacing["3xl"],
         },
       ]}
     >
       <Pressable style={styles.closeButton} onPress={handleClose}>
-        <Feather name="x" size={24} color={ObimoColors.textSecondary} />
+        <Feather name="x" size={20} color={ObimoColors.textSecondary} />
       </Pressable>
 
       <Animated.View style={[styles.content, contentStyle]}>
-        <Animated.View style={[styles.iconContainer, iconStyle]}>
-          <Image
-            source={require("../../assets/images/email-sent.png")}
-            style={styles.illustration}
-            resizeMode="contain"
-          />
-        </Animated.View>
+        <View style={styles.iconContainer}>
+          <LinkIcon />
+        </View>
 
         <ThemedText style={styles.title}>You're almost there</ThemedText>
         <ThemedText style={styles.subtitle}>
@@ -203,7 +215,7 @@ function SecondaryButton({ onPress, label }: { onPress: () => void; label: strin
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: ObimoColors.backgroundSecondary,
+    backgroundColor: "#E8E8E8",
     paddingHorizontal: Spacing["2xl"],
   },
   closeButton: {
@@ -226,10 +238,6 @@ const styles = StyleSheet.create({
   iconContainer: {
     marginBottom: Spacing["3xl"],
   },
-  illustration: {
-    width: 180,
-    height: 180,
-  },
   title: {
     ...Typography.h2,
     color: ObimoColors.textPrimary,
@@ -244,14 +252,14 @@ const styles = StyleSheet.create({
   },
   emailText: {
     color: ObimoColors.textPrimary,
-    fontWeight: "600",
+    fontWeight: "500",
   },
   buttonsContainer: {
     gap: Spacing.md,
   },
   primaryButton: {
     height: Spacing.buttonHeight,
-    backgroundColor: ObimoColors.textPrimary,
+    backgroundColor: ObimoColors.buttonDark,
     borderRadius: BorderRadius.full,
     alignItems: "center",
     justifyContent: "center",

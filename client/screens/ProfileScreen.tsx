@@ -9,7 +9,7 @@ import * as Haptics from "expo-haptics";
 
 import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
 import { ThemedText } from "@/components/ThemedText";
-import { ObimoColors, Spacing, Typography, BorderRadius } from "@/constants/theme";
+import { ObimoColors, Spacing, Typography } from "@/constants/theme";
 
 export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
@@ -39,7 +39,7 @@ export default function ProfileScreen() {
     >
       <View style={styles.avatarContainer}>
         <View style={styles.avatar}>
-          <Feather name="user" size={48} color={ObimoColors.primary} />
+          <Feather name="user" size={48} color={ObimoColors.textSecondary} />
         </View>
         <ThemedText style={styles.userName}>Nomad User</ThemedText>
         <ThemedText style={styles.userStatus}>Ready to explore</ThemedText>
@@ -89,7 +89,7 @@ function MenuItem({ icon, label }: { icon: string; label: string }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: ObimoColors.background,
+    backgroundColor: "#FFFFFF",
   },
   avatarContainer: {
     alignItems: "center",
@@ -99,7 +99,7 @@ const styles = StyleSheet.create({
     width: 100,
     height: 100,
     borderRadius: 50,
-    backgroundColor: ObimoColors.accent + "30",
+    backgroundColor: ObimoColors.background,
     alignItems: "center",
     justifyContent: "center",
     marginBottom: Spacing.md,
@@ -139,7 +139,7 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 8,
-    backgroundColor: ObimoColors.accent + "20",
+    backgroundColor: ObimoColors.background,
     alignItems: "center",
     justifyContent: "center",
     marginRight: Spacing.md,

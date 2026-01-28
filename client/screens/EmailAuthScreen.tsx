@@ -13,13 +13,13 @@ import Animated, {
   withSpring,
   Easing,
 } from "react-native-reanimated";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useHeaderHeight } from "@react-navigation/elements";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import * as Haptics from "expo-haptics";
 import { Feather } from "@expo/vector-icons";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { ThemedText } from "@/components/ThemedText";
 import {
@@ -44,11 +44,9 @@ export default function EmailAuthScreen() {
   const isValidEmail = email.length > 0 && email.includes("@") && email.includes(".");
 
   const contentOpacity = useSharedValue(0);
-  const contentTranslateY = useSharedValue(20);
 
   useEffect(() => {
     contentOpacity.value = withTiming(1, { duration: 400, easing: Easing.out(Easing.cubic) });
-    contentTranslateY.value = withTiming(0, { duration: 400, easing: Easing.out(Easing.cubic) });
     
     setTimeout(() => {
       inputRef.current?.focus();
@@ -57,7 +55,6 @@ export default function EmailAuthScreen() {
 
   const contentStyle = useAnimatedStyle(() => ({
     opacity: contentOpacity.value,
-    transform: [{ translateY: contentTranslateY.value }],
   }));
 
   const handleNext = () => {
@@ -79,7 +76,7 @@ export default function EmailAuthScreen() {
       contentContainerStyle={[
         styles.contentContainer,
         {
-          paddingTop: headerHeight + Spacing["3xl"],
+          paddingTop: headerHeight + Spacing["2xl"],
           paddingBottom: insets.bottom + Spacing["3xl"],
         },
       ]}
@@ -107,11 +104,11 @@ export default function EmailAuthScreen() {
             autoComplete="email"
             testID="input-email"
           />
-          {email.length > 0 && (
+          {email.length > 0 ? (
             <Pressable onPress={handleClear} style={styles.clearButton}>
               <Feather name="x" size={18} color={ObimoColors.textSecondary} />
             </Pressable>
-          )}
+          ) : null}
         </View>
         <View style={styles.inputDivider} />
       </Animated.View>
@@ -158,7 +155,7 @@ function NextButton({ onPress, disabled }: { onPress: () => void; disabled: bool
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: ObimoColors.background,
+    backgroundColor: "#FFFFFF",
   },
   contentContainer: {
     flexGrow: 1,
@@ -199,7 +196,7 @@ const styles = StyleSheet.create({
   },
   nextButton: {
     height: Spacing.buttonHeight,
-    backgroundColor: ObimoColors.textPrimary,
+    backgroundColor: ObimoColors.buttonDark,
     borderRadius: BorderRadius.full,
     alignItems: "center",
     justifyContent: "center",

@@ -1,8 +1,9 @@
 import React from "react";
-import { View, StyleSheet, Image } from "react-native";
+import { View, StyleSheet } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useHeaderHeight } from "@react-navigation/elements";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
+import { Feather } from "@expo/vector-icons";
 
 import { ThemedText } from "@/components/ThemedText";
 import { ObimoColors, Spacing, Typography, BorderRadius } from "@/constants/theme";
@@ -23,18 +24,14 @@ export default function HomeScreen() {
       ]}
     >
       <View style={styles.emptyState}>
-        <View style={styles.illustrationContainer}>
-          <Image
-            source={require("../../assets/images/welcome-hero.png")}
-            style={styles.illustration}
-            resizeMode="contain"
-          />
+        <View style={styles.iconContainer}>
+          <Feather name="compass" size={64} color={ObimoColors.textSecondary} />
         </View>
         <ThemedText style={styles.emptyTitle}>
           Welcome to Obimo
         </ThemedText>
         <ThemedText style={styles.emptySubtitle}>
-          Start exploring to find fellow nomads nearby and discover new adventures.
+          Start exploring to find fellow nomads nearby.
         </ThemedText>
       </View>
     </View>
@@ -44,7 +41,7 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: ObimoColors.background,
+    backgroundColor: "#FFFFFF",
     paddingHorizontal: Spacing.lg,
   },
   emptyState: {
@@ -52,16 +49,14 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  illustrationContainer: {
-    width: 200,
-    height: 150,
-    borderRadius: BorderRadius.lg,
-    overflow: "hidden",
+  iconContainer: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: ObimoColors.background,
+    alignItems: "center",
+    justifyContent: "center",
     marginBottom: Spacing["2xl"],
-  },
-  illustration: {
-    width: "100%",
-    height: "100%",
   },
   emptyTitle: {
     ...Typography.h3,
