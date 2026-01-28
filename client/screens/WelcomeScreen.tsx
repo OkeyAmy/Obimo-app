@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { View, StyleSheet, Pressable, Text, Platform } from "react-native";
 import Animated, {
   useAnimatedStyle,
@@ -8,6 +8,7 @@ import Animated, {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useVideoPlayer, VideoView } from "expo-video";
 import { Asset } from "expo-asset";
+import { useIsFocused } from "@react-navigation/native";
 import { ThemedText } from "@/components/ThemedText";
 import { ObimoColors, Spacing, BorderRadius, Typography } from "@/constants/theme";
 import { AuthBottomSheet } from "@/components/AuthBottomSheet";
@@ -19,6 +20,7 @@ export default function WelcomeScreen() {
   const [showAuthSheet, setShowAuthSheet] = useState(false);
   const [authMode, setAuthMode] = useState<"join" | "login">("join");
   const [videoUri, setVideoUri] = useState<string | null>(null);
+  const isFocused = useIsFocused();
 
   useEffect(() => {
     async function loadVideo() {
@@ -33,11 +35,28 @@ export default function WelcomeScreen() {
     loadVideo();
   }, []);
 
-  const player = useVideoPlayer(videoUri || "", (player) => {
-    player.loop = true;
-    player.muted = true;
-    player.play();
+  const player = useVideoPlayer(videoUri || "", (p) => {
+    p.loop = true;
+    p.muted = true;
+    p.play();
   });
+
+  useEffect(() => {
+    if (player && isFocused && videoUri) {
+      player.play();
+    }
+  }, [player, isFocused, videoUri]);
+
+  useEffect(() => {
+    if (player && videoUri) {
+      const interval = setInterval(() => {
+        if (!player.playing) {
+          player.play();
+        }
+      }, 1000);
+      return () => clearInterval(interval);
+    }
+  }, [player, videoUri]);
 
   const handleJoin = () => {
     setAuthMode("join");

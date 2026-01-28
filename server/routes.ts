@@ -267,7 +267,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (process.env.SENDGRID_API_KEY) {
         const msg = {
           to: email,
-          from: "noreply@obimo.app", // You'll need to verify this sender in SendGrid
+          from: "amaobiokeoma@gmail.com",
           subject: "Confirm your Obimo account",
           text: `Welcome to Obimo!\n\nClick this link to confirm your email: ${confirmUrl}\n\nIf you didn't sign up for Obimo, you can ignore this email.`,
           html: `
@@ -331,7 +331,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (process.env.SENDGRID_API_KEY) {
         const msg = {
           to: email,
-          from: "noreply@obimo.app",
+          from: "amaobiokeoma@gmail.com",
           subject: "Confirm your Obimo account",
           text: `Welcome to Obimo!\n\nClick this link to confirm your email: ${confirmUrl}\n\nIf you didn't sign up for Obimo, you can ignore this email.`,
           html: `
