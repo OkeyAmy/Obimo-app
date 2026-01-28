@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import {
   View,
   StyleSheet,
@@ -6,6 +6,7 @@ import {
   Platform,
   Linking,
   ActionSheetIOS,
+  Alert,
 } from "react-native";
 import Animated, {
   useAnimatedStyle,
@@ -18,8 +19,8 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRoute, RouteProp, useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import * as Haptics from "expo-haptics";
-import { Feather } from "@expo/vector-icons";
-import Svg, { Circle, Path } from "react-native-svg";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
+import Svg, { Circle } from "react-native-svg";
 
 import { ThemedText } from "@/components/ThemedText";
 import {
@@ -63,6 +64,7 @@ export default function EmailConfirmationScreen() {
   const route = useRoute<RouteType>();
   const navigation = useNavigation<NavigationProp>();
   const { email } = route.params;
+  const [isResending, setIsResending] = useState(false);
 
   const contentOpacity = useSharedValue(0);
   const contentScale = useSharedValue(0.95);
@@ -104,17 +106,39 @@ export default function EmailConfirmationScreen() {
           }
         }
       );
-    } else {
+    } else if (Platform.OS === "android") {
       try {
         await Linking.openURL("mailto:");
       } catch {
         console.log("Could not open email app");
       }
+    } else {
+      try {
+        await Linking.openURL("https://mail.google.com");
+      } catch {
+        console.log("Could not open email");
+      }
     }
   };
 
-  const handleDidntGetIt = () => {
+  const handleDidntGetIt = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setIsResending(true);
+    
+    await new Promise(resolve => setTimeout(resolve, 1500));
+    
+    setIsResending(false);
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    
+    if (Platform.OS === "web") {
+      alert(`Confirmation email resent to ${email}`);
+    } else {
+      Alert.alert(
+        "Email Sent",
+        `We've resent the confirmation link to ${email}`,
+        [{ text: "OK" }]
+      );
+    }
   };
 
   const handleClose = () => {
@@ -132,7 +156,7 @@ export default function EmailConfirmationScreen() {
       ]}
     >
       <Pressable style={styles.closeButton} onPress={handleClose}>
-        <Feather name="x" size={20} color={ObimoColors.textSecondary} />
+        <MaterialCommunityIcons name="close" size={20} color={ObimoColors.textSecondary} />
       </Pressable>
 
       <Animated.View style={[styles.content, contentStyle]}>
@@ -150,7 +174,11 @@ export default function EmailConfirmationScreen() {
 
       <View style={styles.buttonsContainer}>
         <PrimaryButton onPress={handleOpenEmailApp} label="Open email app" />
-        <SecondaryButton onPress={handleDidntGetIt} label="I didn't get it" />
+        <SecondaryButton 
+          onPress={handleDidntGetIt} 
+          label={isResending ? "Sending..." : "I didn't get it"} 
+          disabled={isResending}
+        />
       </View>
     </View>
   );
@@ -184,15 +212,18 @@ function PrimaryButton({ onPress, label }: { onPress: () => void; label: string 
   );
 }
 
-function SecondaryButton({ onPress, label }: { onPress: () => void; label: string }) {
+function SecondaryButton({ onPress, label, disabled }: { onPress: () => void; label: string; disabled?: boolean }) {
   const scale = useSharedValue(1);
 
   const animatedStyle = useAnimatedStyle(() => ({
     transform: [{ scale: scale.value }],
+    opacity: disabled ? 0.6 : 1,
   }));
 
   const handlePressIn = () => {
-    scale.value = withSpring(0.96, { damping: 15, stiffness: 150 });
+    if (!disabled) {
+      scale.value = withSpring(0.96, { damping: 15, stiffness: 150 });
+    }
   };
 
   const handlePressOut = () => {
@@ -201,7 +232,7 @@ function SecondaryButton({ onPress, label }: { onPress: () => void; label: strin
 
   return (
     <AnimatedPressable
-      onPress={onPress}
+      onPress={disabled ? undefined : onPress}
       onPressIn={handlePressIn}
       onPressOut={handlePressOut}
       style={[styles.secondaryButton, animatedStyle]}

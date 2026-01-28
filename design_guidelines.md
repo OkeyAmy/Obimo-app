@@ -8,6 +8,34 @@
 
 **Memorable Element**: The Fascinate font branding paired with full-screen video creates an immersive, sophisticated experience.
 
+## Icon System
+
+**IMPORTANT**: All icons MUST come from MaterialCommunityIcons (from @expo/vector-icons), which matches Iconify's Material Design Icons collection.
+
+**Usage**:
+```typescript
+import { MaterialCommunityIcons } from "@expo/vector-icons";
+
+<MaterialCommunityIcons name="email-outline" size={22} color="#2D3142" />
+```
+
+**Common Icons Used**:
+- `email-outline` - Email authentication
+- `apple` - Apple sign in
+- `google` - Google sign in
+- `close` - Close/dismiss buttons
+- `arrow-left` - Back navigation
+- `shield-account` - Authentication/security
+- `compass-outline` - Explore/home
+- `account-outline` - Profile
+- `chevron-right` - Menu item arrows
+- `cog-outline` - Settings
+- `bell-outline` - Notifications
+- `lock-outline` - Privacy
+- `help-circle-outline` - Help
+- `file-document-outline` - Terms
+- `logout` - Log out
+
 ## Navigation Architecture
 
 **Root Navigation**: Stack-Only (Onboarding/Auth Flow)
@@ -17,93 +45,20 @@
 2. **Welcome Screen** - Full-screen video with "Obimo" overlay, "Join Obimo" and "Log in" buttons
 3. **Auth Method Bottom Sheet** - Modal for selecting sign-in method (Apple, Google, Email)
 4. **Email Input Screen** - White background, email input with underline
-5. **Email Confirmation Screen** - Gray background with link icon, waiting state
+5. **Email Confirmation Screen** - Gray background with link icon, waiting state, resend functionality
+6. **Replit Auth Screen** - WebView-based authentication with Replit
 
-## Screen-by-Screen Specifications
+## Authentication
 
-### 1. Splash Screen
-**Purpose**: Brand introduction and app loading
+### Supported Methods:
+1. **Email** - Enter email, receive confirmation link
+2. **Apple/Google** - Redirects to Replit Auth (WebView on native, browser on web)
+3. **Replit Auth** - OAuth-based authentication using Replit's auth system
 
-**Layout**:
-- No header
-- Centered content area with "Obimo" text in Fascinate font
-- Background: #E8E8E8 (neutral gray)
-
-**Components**:
-- "Obimo" text (Fascinate font, 72px, color #2D3142)
-- Subtle fade-in animation on load
-
----
-
-### 2. Welcome Screen
-**Purpose**: First decision point - join or log in
-
-**Layout**:
-- Full-screen video background playing continuously
-- Dark overlay on video (rgba(0,0,0,0.25))
-- Logo centered vertically in top area
-- Short tagline and buttons at bottom overlaying video
-- No split screen - everything overlays on video
-
-**Components**:
-- "Obimo" text (Fascinate font, 56px, white, centered)
-- Short tagline: "A travel app for the curious" (16px, white)
-- "Join Obimo" button (dark #2D3142 background, white text)
-- "Log in" button (white/85% opacity background, dark text)
-
----
-
-### 3. Auth Method Bottom Sheet (Modal)
-**Purpose**: Select authentication method
-
-**Layout**:
-- Native modal bottom sheet with rounded top corners (20px)
-- Handle bar at top
-- White background with subtle shadow
-
-**Components**:
-- "Join Obimo" or "Log in" heading
-- Terms and privacy text with underlined links
-- Apple Sign-In button (dark with Apple icon)
-- Google Sign-In button (white with border, Google icon)
-- "Email" button (dark background)
-- "Cancel" button (gray background)
-
----
-
-### 4. Email Input Screen
-**Purpose**: Collect email address
-
-**Layout**:
-- White background
-- Back button in header
-- Form with underlined text input
-
-**Components**:
-- Title: "Where can we send your confirmation link?"
-- Subtitle: "Enter a real email address. Don't worry — no one else will see it."
-- Email text input with underline (not boxed)
-- Clear button (X) when text entered
-- "Next" button (dark, disabled until valid email)
-
----
-
-### 5. Email Confirmation Screen
-**Purpose**: Waiting state while user checks email
-
-**Layout**:
-- Gray background (#E8E8E8)
-- Close button (X) in top right
-- Centered content
-
-**Components**:
-- Link icon (two overlapping circles/ovals - SVG, not generated image)
-- "You're almost there" heading
-- "We've sent an email to [email]. Check your inbox and tap the link we sent."
-- "Open email app" primary button (opens native email app picker)
-- "I didn't get it" secondary button
-
----
+### Resend Email Functionality:
+- "I didn't get it" button triggers email resend
+- Shows "Sending..." loading state
+- Displays success alert confirming resend
 
 ## Color Palette
 
@@ -135,7 +90,7 @@ Error: #DC2626 (red - logout, errors)
 
 ## Visual Design
 
-**Icons**: Use Feather icons from @expo/vector-icons (NO generated images)
+**Icons**: MaterialCommunityIcons from @expo/vector-icons (NO generated images, NO Feather icons)
 
 **Buttons**:
 - Primary: #2D3142 background, white text, full-width rounded pill
@@ -159,5 +114,6 @@ Error: #DC2626 (red - logout, errors)
 1. **Minimal text** - Keep copy short and emotionally resonant
 2. **Full-screen video** - Content overlays on video, not split screen
 3. **Neutral palette** - No bright colors, sophisticated grays
-4. **Clean icons** - Use Feather icons, no generated images
+4. **Material icons** - Use MaterialCommunityIcons from @expo/vector-icons
 5. **Native feel** - Use iOS-style action sheets for email picker
+6. **Feedback states** - Loading states on buttons, success haptics

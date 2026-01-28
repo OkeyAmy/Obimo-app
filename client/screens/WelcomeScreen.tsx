@@ -1,5 +1,5 @@
-import React, { useState } from "react";
-import { View, StyleSheet, Pressable, Text } from "react-native";
+import React, { useState, useEffect } from "react";
+import { View, StyleSheet, Pressable, Text, Platform } from "react-native";
 import Animated, {
   useAnimatedStyle,
   useSharedValue,
@@ -7,20 +7,37 @@ import Animated, {
 } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useVideoPlayer, VideoView } from "expo-video";
+import { Asset } from "expo-asset";
 import { ThemedText } from "@/components/ThemedText";
 import { ObimoColors, Spacing, BorderRadius, Typography } from "@/constants/theme";
 import { AuthBottomSheet } from "@/components/AuthBottomSheet";
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
-const VIDEO_URL = "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4";
-
 export default function WelcomeScreen() {
   const insets = useSafeAreaInsets();
   const [showAuthSheet, setShowAuthSheet] = useState(false);
   const [authMode, setAuthMode] = useState<"join" | "login">("join");
+  const [videoUri, setVideoUri] = useState<string | null>(null);
 
-  const player = useVideoPlayer(VIDEO_URL, (player) => {
+  useEffect(() => {
+    async function loadVideo() {
+      if (Platform.OS === "web") {
+        setVideoUri("https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4");
+      } else {
+        try {
+          const asset = Asset.fromModule(require("../../assets/videos/onboarding.mp4"));
+          await asset.downloadAsync();
+          setVideoUri(asset.localUri || asset.uri);
+        } catch {
+          setVideoUri("https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4");
+        }
+      }
+    }
+    loadVideo();
+  }, []);
+
+  const player = useVideoPlayer(videoUri || "", (player) => {
     player.loop = true;
     player.muted = true;
     player.play();
@@ -38,15 +55,17 @@ export default function WelcomeScreen() {
 
   return (
     <View style={styles.container}>
-      <View style={styles.videoContainer}>
-        <VideoView
-          style={styles.video}
-          player={player}
-          contentFit="cover"
-          nativeControls={false}
-        />
-        <View style={styles.videoOverlay} />
-      </View>
+      {videoUri ? (
+        <View style={styles.videoContainer}>
+          <VideoView
+            style={styles.video}
+            player={player}
+            contentFit="cover"
+            nativeControls={false}
+          />
+          <View style={styles.videoOverlay} />
+        </View>
+      ) : null}
 
       <View style={[styles.content, { paddingTop: insets.top, paddingBottom: insets.bottom + Spacing["3xl"] }]}>
         <View style={styles.logoSection}>

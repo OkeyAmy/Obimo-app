@@ -18,7 +18,7 @@ import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import * as Haptics from "expo-haptics";
-import { Feather } from "@expo/vector-icons";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { ThemedText } from "@/components/ThemedText";
@@ -106,7 +106,7 @@ export default function EmailAuthScreen() {
           />
           {email.length > 0 ? (
             <Pressable onPress={handleClear} style={styles.clearButton}>
-              <Feather name="x" size={18} color={ObimoColors.textSecondary} />
+              <MaterialCommunityIcons name="close" size={18} color={ObimoColors.textSecondary} />
             </Pressable>
           ) : null}
         </View>

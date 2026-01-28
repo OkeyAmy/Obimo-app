@@ -4,7 +4,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useHeaderHeight } from "@react-navigation/elements";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import { useNavigation, CommonActions } from "@react-navigation/native";
-import { Feather } from "@expo/vector-icons";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 
 import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
@@ -39,7 +39,7 @@ export default function ProfileScreen() {
     >
       <View style={styles.avatarContainer}>
         <View style={styles.avatar}>
-          <Feather name="user" size={48} color={ObimoColors.textSecondary} />
+          <MaterialCommunityIcons name="account-outline" size={48} color={ObimoColors.textSecondary} />
         </View>
         <ThemedText style={styles.userName}>Nomad User</ThemedText>
         <ThemedText style={styles.userStatus}>Ready to explore</ThemedText>
@@ -48,22 +48,22 @@ export default function ProfileScreen() {
       <View style={styles.section}>
         <ThemedText style={styles.sectionTitle}>Account</ThemedText>
         
-        <MenuItem icon="edit-2" label="Edit Profile" />
-        <MenuItem icon="settings" label="Settings" />
-        <MenuItem icon="bell" label="Notifications" />
-        <MenuItem icon="shield" label="Privacy" />
+        <MenuItem icon="account-edit-outline" label="Edit Profile" />
+        <MenuItem icon="cog-outline" label="Settings" />
+        <MenuItem icon="bell-outline" label="Notifications" />
+        <MenuItem icon="shield-outline" label="Privacy" />
       </View>
 
       <View style={styles.section}>
         <ThemedText style={styles.sectionTitle}>About</ThemedText>
         
-        <MenuItem icon="help-circle" label="Help & Support" />
-        <MenuItem icon="file-text" label="Terms of Service" />
-        <MenuItem icon="lock" label="Privacy Policy" />
+        <MenuItem icon="help-circle-outline" label="Help & Support" />
+        <MenuItem icon="file-document-outline" label="Terms of Service" />
+        <MenuItem icon="lock-outline" label="Privacy Policy" />
       </View>
 
       <Pressable style={styles.logoutButton} onPress={handleLogout}>
-        <Feather name="log-out" size={20} color={ObimoColors.error} />
+        <MaterialCommunityIcons name="logout" size={20} color={ObimoColors.error} />
         <ThemedText style={styles.logoutText}>Log out</ThemedText>
       </Pressable>
 
@@ -77,11 +77,11 @@ function MenuItem({ icon, label }: { icon: string; label: string }) {
     <Pressable style={styles.menuItem}>
       <View style={styles.menuItemLeft}>
         <View style={styles.menuIconContainer}>
-          <Feather name={icon as any} size={20} color={ObimoColors.textPrimary} />
+          <MaterialCommunityIcons name={icon as any} size={20} color={ObimoColors.textPrimary} />
         </View>
         <ThemedText style={styles.menuItemLabel}>{label}</ThemedText>
       </View>
-      <Feather name="chevron-right" size={20} color={ObimoColors.textSecondary} />
+      <MaterialCommunityIcons name="chevron-right" size={20} color={ObimoColors.textSecondary} />
     </Pressable>
   );
 }

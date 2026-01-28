@@ -6,6 +6,7 @@ import SplashScreen from "@/screens/SplashScreen";
 import WelcomeScreen from "@/screens/WelcomeScreen";
 import EmailAuthScreen from "@/screens/EmailAuthScreen";
 import EmailConfirmationScreen from "@/screens/EmailConfirmationScreen";
+import ReplitAuthScreen from "@/screens/ReplitAuthScreen";
 import ModalScreen from "@/screens/ModalScreen";
 import { useScreenOptions } from "@/hooks/useScreenOptions";
 import { ObimoColors } from "@/constants/theme";
@@ -15,6 +16,7 @@ export type RootStackParamList = {
   Welcome: undefined;
   EmailAuth: undefined;
   EmailConfirmation: { email: string };
+  ReplitAuth: undefined;
   Main: undefined;
   Modal: undefined;
 };
@@ -57,6 +59,14 @@ export default function RootStackNavigator() {
       <Stack.Screen
         name="EmailConfirmation"
         component={EmailConfirmationScreen}
+        options={{
+          headerShown: false,
+          presentation: "fullScreenModal",
+        }}
+      />
+      <Stack.Screen
+        name="ReplitAuth"
+        component={ReplitAuthScreen}
         options={{
           headerShown: false,
           presentation: "fullScreenModal",

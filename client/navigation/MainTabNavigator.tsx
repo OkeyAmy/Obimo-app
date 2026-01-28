@@ -1,6 +1,6 @@
 import React from "react";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
-import { Feather } from "@expo/vector-icons";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { BlurView } from "expo-blur";
 import { Platform, StyleSheet } from "react-native";
 import HomeStackNavigator from "@/navigation/HomeStackNavigator";
@@ -50,7 +50,7 @@ export default function MainTabNavigator() {
         options={{
           title: "Explore",
           tabBarIcon: ({ color, size }) => (
-            <Feather name="compass" size={size} color={color} />
+            <MaterialCommunityIcons name="compass-outline" size={size} color={color} />
           ),
         }}
       />
@@ -60,7 +60,7 @@ export default function MainTabNavigator() {
         options={{
           title: "Profile",
           tabBarIcon: ({ color, size }) => (
-            <Feather name="user" size={size} color={color} />
+            <MaterialCommunityIcons name="account-outline" size={size} color={color} />
           ),
         }}
       />

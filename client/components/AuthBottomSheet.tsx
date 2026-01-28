@@ -17,7 +17,7 @@ import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import { Feather } from "@expo/vector-icons";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 
 import { ThemedText } from "@/components/ThemedText";
@@ -95,10 +95,18 @@ export function AuthBottomSheet({ visible, onClose, mode }: AuthBottomSheetProps
 
   const handleApplePress = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    close();
+    setTimeout(() => {
+      navigation.navigate("ReplitAuth");
+    }, 350);
   };
 
   const handleGooglePress = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    close();
+    setTimeout(() => {
+      navigation.navigate("ReplitAuth");
+    }, 350);
   };
 
   const handleCancelPress = () => {
@@ -140,19 +148,19 @@ export function AuthBottomSheet({ visible, onClose, mode }: AuthBottomSheetProps
 
             <View style={styles.buttonsContainer}>
               <AuthButton
-                icon="mail"
+                icon="email-outline"
                 label="Email"
                 onPress={handleEmailPress}
                 variant="primary"
               />
               <AuthButton
-                icon="smartphone"
+                icon="apple"
                 label="Apple"
                 onPress={handleApplePress}
                 variant="secondary"
               />
               <AuthButton
-                icon="chrome"
+                icon="google"
                 label="Google"
                 onPress={handleGooglePress}
                 variant="secondary"
@@ -236,7 +244,7 @@ function AuthButton({ icon, label, onPress, variant }: AuthButtonProps) {
       <View style={styles.authButtonContent}>
         {icon ? (
           <View style={styles.iconContainer}>
-            <Feather name={icon as any} size={20} color={getIconColor()} />
+            <MaterialCommunityIcons name={icon as any} size={22} color={getIconColor()} />
           </View>
         ) : null}
         <ThemedText style={[styles.authButtonText, { color: getTextColor() }]}>
