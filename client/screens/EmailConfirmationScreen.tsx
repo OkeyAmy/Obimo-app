@@ -1,11 +1,12 @@
-import React, { useEffect, useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   View,
   StyleSheet,
   Pressable,
-  Platform,
+  TextInput,
   Linking,
-  ActionSheetIOS,
+  Platform,
+  Modal,
   Alert,
 } from "react-native";
 import Animated, {
@@ -15,12 +16,11 @@ import Animated, {
   withSpring,
   Easing,
 } from "react-native-reanimated";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useRoute, RouteProp, useNavigation } from "@react-navigation/native";
+import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Haptics from "expo-haptics";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import Svg, { Circle } from "react-native-svg";
 
 import { ThemedText } from "@/components/ThemedText";
 import {
@@ -30,194 +30,265 @@ import {
   Typography,
 } from "@/constants/theme";
 import { RootStackParamList } from "@/navigation/RootStackNavigator";
+import { getApiUrl } from "@/lib/query-client";
 
-type RouteType = RouteProp<RootStackParamList, "EmailConfirmation">;
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
+type EmailConfirmationRouteProp = RouteProp<RootStackParamList, "EmailConfirmation">;
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
-function LinkIcon() {
-  return (
-    <Svg width={180} height={120} viewBox="0 0 180 120">
-      <Circle
-        cx="55"
-        cy="60"
-        r="40"
-        stroke="#2D3142"
-        strokeWidth="4"
-        fill="none"
-      />
-      <Circle
-        cx="125"
-        cy="60"
-        r="40"
-        stroke="#2D3142"
-        strokeWidth="4"
-        fill="none"
-      />
-    </Svg>
-  );
-}
-
 export default function EmailConfirmationScreen() {
   const insets = useSafeAreaInsets();
-  const route = useRoute<RouteType>();
   const navigation = useNavigation<NavigationProp>();
+  const route = useRoute<EmailConfirmationRouteProp>();
   const { email } = route.params;
+  
+  const [code, setCode] = useState("");
+  const [countdown, setCountdown] = useState(30);
+  const [canResend, setCanResend] = useState(false);
   const [isResending, setIsResending] = useState(false);
+  const [isVerifying, setIsVerifying] = useState(false);
+  const [showEmailPicker, setShowEmailPicker] = useState(false);
+  const [error, setError] = useState("");
+  const inputRef = useRef<TextInput>(null);
 
   const contentOpacity = useSharedValue(0);
-  const contentScale = useSharedValue(0.95);
 
   useEffect(() => {
-    contentOpacity.value = withTiming(1, { duration: 500, easing: Easing.out(Easing.cubic) });
-    contentScale.value = withSpring(1, { damping: 15, stiffness: 100 });
+    contentOpacity.value = withTiming(1, { duration: 400, easing: Easing.out(Easing.cubic) });
+    
+    setTimeout(() => {
+      inputRef.current?.focus();
+    }, 500);
   }, []);
+
+  useEffect(() => {
+    if (countdown > 0) {
+      const timer = setTimeout(() => setCountdown(countdown - 1), 1000);
+      return () => clearTimeout(timer);
+    } else {
+      setCanResend(true);
+    }
+  }, [countdown]);
+
+  useEffect(() => {
+    if (code.length === 6) {
+      verifyCode();
+    }
+  }, [code]);
 
   const contentStyle = useAnimatedStyle(() => ({
     opacity: contentOpacity.value,
-    transform: [{ scale: contentScale.value }],
   }));
 
-  const handleOpenEmailApp = async () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    
-    if (Platform.OS === "ios") {
-      ActionSheetIOS.showActionSheetWithOptions(
-        {
-          title: "Open mail app",
-          message: "Which app would you like to open?",
-          options: ["Cancel", "Mail", "Gmail"],
-          cancelButtonIndex: 0,
-        },
-        async (buttonIndex) => {
-          if (buttonIndex === 1) {
-            try {
-              await Linking.openURL("message://");
-            } catch {
-              console.log("Could not open Mail app");
-            }
-          } else if (buttonIndex === 2) {
-            try {
-              await Linking.openURL("googlegmail://");
-            } catch {
-              console.log("Could not open Gmail app");
-            }
-          }
-        }
-      );
-    } else if (Platform.OS === "android") {
-      try {
-        await Linking.openURL("mailto:");
-      } catch {
-        console.log("Could not open email app");
-      }
-    } else {
-      try {
-        await Linking.openURL("https://mail.google.com");
-      } catch {
-        console.log("Could not open email");
-      }
-    }
-  };
-
-  const handleDidntGetIt = async () => {
+  const handleBack = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setIsResending(true);
+    navigation.goBack();
+  };
+
+  const handleChangeEmail = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    navigation.goBack();
+  };
+
+  const verifyCode = async () => {
+    if (code.length !== 6) return;
     
-    await new Promise(resolve => setTimeout(resolve, 1500));
+    setIsVerifying(true);
+    setError("");
     
-    setIsResending(false);
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    
-    if (Platform.OS === "web") {
-      alert(`Confirmation email resent to ${email}`);
-    } else {
-      Alert.alert(
-        "Email Sent",
-        `We've resent the confirmation link to ${email}`,
-        [{ text: "OK" }]
-      );
+    try {
+      const response = await fetch(`${getApiUrl()}api/auth/email/verify`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, code }),
+      });
+      
+      const data = await response.json();
+      
+      if (response.ok && data.success) {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        navigation.reset({
+          index: 0,
+          routes: [{ name: "Main" }],
+        });
+      } else {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+        setError(data.error || "Invalid code. Please try again.");
+        setCode("");
+        inputRef.current?.focus();
+      }
+    } catch (err) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      setError("Something went wrong. Please try again.");
+      setCode("");
+    } finally {
+      setIsVerifying(false);
     }
   };
 
-  const handleClose = () => {
-    navigation.navigate("Welcome");
+  const handleResend = async () => {
+    if (!canResend || isResending) return;
+    
+    setIsResending(true);
+    setError("");
+    
+    try {
+      const response = await fetch(`${getApiUrl()}api/auth/email/resend`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+      
+      const data = await response.json();
+      
+      if (response.ok && data.success) {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        setCountdown(30);
+        setCanResend(false);
+        if (Platform.OS === "web") {
+          alert("A new verification code has been sent to your email.");
+        } else {
+          Alert.alert("Code sent", "A new verification code has been sent to your email.");
+        }
+      } else {
+        setError(data.error || "Failed to resend code");
+      }
+    } catch (err) {
+      setError("Failed to resend code. Please try again.");
+    } finally {
+      setIsResending(false);
+    }
+  };
+
+  const handleOpenEmailApp = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    if (Platform.OS === "web") {
+      Linking.openURL("https://mail.google.com");
+    } else {
+      setShowEmailPicker(true);
+    }
+  };
+
+  const openMailApp = async (scheme: string) => {
+    setShowEmailPicker(false);
+    try {
+      await Linking.openURL(scheme);
+    } catch (err) {
+      console.log("Could not open email app:", err);
+    }
+  };
+
+  const handleCodeChange = (text: string) => {
+    const cleaned = text.replace(/[^0-9]/g, "").slice(0, 6);
+    setCode(cleaned);
+    setError("");
   };
 
   return (
-    <View
-      style={[
-        styles.container,
-        {
-          paddingTop: insets.top + Spacing["4xl"],
-          paddingBottom: insets.bottom + Spacing["3xl"],
-        },
-      ]}
-    >
-      <Pressable style={styles.closeButton} onPress={handleClose}>
-        <MaterialCommunityIcons name="close" size={20} color={ObimoColors.textSecondary} />
-      </Pressable>
+    <View style={[styles.container, { paddingTop: insets.top }]}>
+      <View style={styles.header}>
+        <Pressable style={styles.backButton} onPress={handleBack}>
+          <MaterialCommunityIcons name="arrow-left" size={24} color={ObimoColors.textPrimary} />
+        </Pressable>
+      </View>
 
       <Animated.View style={[styles.content, contentStyle]}>
-        <View style={styles.iconContainer}>
-          <LinkIcon />
+        <ThemedText style={styles.title}>
+          We just need to verify{"\n"}it's you
+        </ThemedText>
+        
+        <ThemedText style={styles.subtitle}>
+          We sent your code to {email}.{" "}
+          <ThemedText style={styles.changeLink} onPress={handleChangeEmail}>
+            Change email address.
+          </ThemedText>
+        </ThemedText>
+
+        <View style={styles.inputSection}>
+          <ThemedText style={styles.inputLabel}>Code</ThemedText>
+          <TextInput
+            ref={inputRef}
+            style={styles.codeInput}
+            value={code}
+            onChangeText={handleCodeChange}
+            keyboardType="number-pad"
+            maxLength={6}
+            placeholder=""
+            placeholderTextColor={ObimoColors.textSecondary}
+            testID="input-code"
+            editable={!isVerifying}
+          />
+          <View style={styles.inputDivider} />
+          
+          {error ? (
+            <ThemedText style={styles.errorText}>{error}</ThemedText>
+          ) : countdown > 0 ? (
+            <ThemedText style={styles.countdownText}>
+              The code should arrive within {countdown} sec. You might need to check your junk folder.
+            </ThemedText>
+          ) : (
+            <Pressable onPress={handleResend} disabled={isResending}>
+              <ThemedText style={styles.resendLink}>
+                {isResending ? "Sending..." : "Didn't get the message?"}
+              </ThemedText>
+            </Pressable>
+          )}
         </View>
 
-        <ThemedText style={styles.title}>You're almost there</ThemedText>
-        <ThemedText style={styles.subtitle}>
-          We've sent an email to{"\n"}
-          <ThemedText style={styles.emailText}>{email}</ThemedText>. Check your inbox
-          and tap the link we sent.
-        </ThemedText>
+        <View style={styles.spacer} />
+
+        <View style={[styles.bottomSection, { paddingBottom: insets.bottom + Spacing.lg }]}>
+          <ContinueButton 
+            onPress={verifyCode} 
+            disabled={code.length !== 6 || isVerifying}
+            loading={isVerifying}
+          />
+          
+          <Pressable style={styles.openEmailButton} onPress={handleOpenEmailApp}>
+            <ThemedText style={styles.openEmailText}>Open email app</ThemedText>
+          </Pressable>
+        </View>
       </Animated.View>
 
-      <View style={styles.buttonsContainer}>
-        <PrimaryButton onPress={handleOpenEmailApp} label="Open email app" />
-        <SecondaryButton 
-          onPress={handleDidntGetIt} 
-          label={isResending ? "Sending..." : "I didn't get it"} 
-          disabled={isResending}
-        />
-      </View>
+      <Modal
+        visible={showEmailPicker}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowEmailPicker(false)}
+      >
+        <Pressable style={styles.modalOverlay} onPress={() => setShowEmailPicker(false)}>
+          <View style={[styles.emailPickerSheet, { paddingBottom: insets.bottom + Spacing.lg }]}>
+            <View style={styles.sheetHeader}>
+              <ThemedText style={styles.sheetTitle}>Open email app</ThemedText>
+              <Pressable onPress={() => setShowEmailPicker(false)} style={styles.closeButton}>
+                <MaterialCommunityIcons name="close" size={20} color={ObimoColors.textSecondary} />
+              </Pressable>
+            </View>
+            <ThemedText style={styles.sheetSubtitle}>Which app would you like to open?</ThemedText>
+            
+            <Pressable style={styles.emailOption} onPress={() => openMailApp("message://")}>
+              <MaterialCommunityIcons name="email-outline" size={24} color={ObimoColors.textPrimary} />
+              <ThemedText style={styles.emailOptionText}>Mail</ThemedText>
+            </Pressable>
+            
+            <Pressable style={styles.emailOption} onPress={() => openMailApp("googlegmail://")}>
+              <MaterialCommunityIcons name="gmail" size={24} color="#EA4335" />
+              <ThemedText style={styles.emailOptionText}>Gmail</ThemedText>
+            </Pressable>
+          </View>
+        </Pressable>
+      </Modal>
     </View>
   );
 }
 
-function PrimaryButton({ onPress, label }: { onPress: () => void; label: string }) {
+function ContinueButton({ onPress, disabled, loading }: { onPress: () => void; disabled: boolean; loading: boolean }) {
   const scale = useSharedValue(1);
 
   const animatedStyle = useAnimatedStyle(() => ({
     transform: [{ scale: scale.value }],
-  }));
-
-  const handlePressIn = () => {
-    scale.value = withSpring(0.96, { damping: 15, stiffness: 150 });
-  };
-
-  const handlePressOut = () => {
-    scale.value = withSpring(1, { damping: 15, stiffness: 150 });
-  };
-
-  return (
-    <AnimatedPressable
-      onPress={onPress}
-      onPressIn={handlePressIn}
-      onPressOut={handlePressOut}
-      style={[styles.primaryButton, animatedStyle]}
-      testID="button-open-email"
-    >
-      <ThemedText style={styles.primaryButtonText}>{label}</ThemedText>
-    </AnimatedPressable>
-  );
-}
-
-function SecondaryButton({ onPress, label, disabled }: { onPress: () => void; label: string; disabled?: boolean }) {
-  const scale = useSharedValue(1);
-
-  const animatedStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: scale.value }],
-    opacity: disabled ? 0.6 : 1,
+    opacity: disabled ? 0.4 : 1,
   }));
 
   const handlePressIn = () => {
@@ -232,13 +303,16 @@ function SecondaryButton({ onPress, label, disabled }: { onPress: () => void; la
 
   return (
     <AnimatedPressable
-      onPress={disabled ? undefined : onPress}
+      onPress={onPress}
       onPressIn={handlePressIn}
       onPressOut={handlePressOut}
-      style={[styles.secondaryButton, animatedStyle]}
-      testID="button-didnt-get-it"
+      disabled={disabled}
+      style={[styles.continueButton, animatedStyle]}
+      testID="button-continue"
     >
-      <ThemedText style={styles.secondaryButtonText}>{label}</ThemedText>
+      <ThemedText style={styles.continueButtonText}>
+        {loading ? "Verifying..." : "Continue"}
+      </ThemedText>
     </AnimatedPressable>
   );
 }
@@ -246,70 +320,145 @@ function SecondaryButton({ onPress, label, disabled }: { onPress: () => void; la
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#E8E8E8",
-    paddingHorizontal: Spacing["2xl"],
+    backgroundColor: "#FFFFFF",
   },
-  closeButton: {
-    position: "absolute",
-    top: 60,
-    right: Spacing.xl,
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: "rgba(0, 0, 0, 0.08)",
+  header: {
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
+  },
+  backButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     alignItems: "center",
     justifyContent: "center",
-    zIndex: 10,
   },
   content: {
     flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  iconContainer: {
-    marginBottom: Spacing["3xl"],
+    paddingHorizontal: Spacing["2xl"],
+    paddingTop: Spacing.xl,
   },
   title: {
     ...Typography.h2,
     color: ObimoColors.textPrimary,
-    textAlign: "center",
     marginBottom: Spacing.md,
   },
   subtitle: {
     ...Typography.body,
     color: ObimoColors.textSecondary,
-    textAlign: "center",
     lineHeight: 24,
+    marginBottom: Spacing["3xl"],
   },
-  emailText: {
+  changeLink: {
+    ...Typography.body,
     color: ObimoColors.textPrimary,
-    fontWeight: "500",
+    textDecorationLine: "underline",
   },
-  buttonsContainer: {
+  inputSection: {
+    marginBottom: Spacing.xl,
+  },
+  inputLabel: {
+    ...Typography.small,
+    color: ObimoColors.textSecondary,
+    marginBottom: Spacing.sm,
+  },
+  codeInput: {
+    fontSize: 24,
+    fontWeight: "500",
+    color: ObimoColors.textPrimary,
+    paddingVertical: Spacing.md,
+    letterSpacing: 8,
+  },
+  inputDivider: {
+    height: 1,
+    backgroundColor: ObimoColors.textPrimary,
+    marginBottom: Spacing.md,
+  },
+  countdownText: {
+    ...Typography.small,
+    color: ObimoColors.textSecondary,
+    lineHeight: 20,
+  },
+  errorText: {
+    ...Typography.small,
+    color: "#DC2626",
+    lineHeight: 20,
+  },
+  resendLink: {
+    ...Typography.body,
+    color: ObimoColors.textPrimary,
+    textDecorationLine: "underline",
+  },
+  spacer: {
+    flex: 1,
+  },
+  bottomSection: {
     gap: Spacing.md,
   },
-  primaryButton: {
+  continueButton: {
     height: Spacing.buttonHeight,
     backgroundColor: ObimoColors.buttonDark,
     borderRadius: BorderRadius.full,
     alignItems: "center",
     justifyContent: "center",
   },
-  primaryButtonText: {
+  continueButtonText: {
     color: "#FFFFFF",
     fontSize: 17,
     fontWeight: "600",
   },
-  secondaryButton: {
+  openEmailButton: {
     height: Spacing.buttonHeight,
-    backgroundColor: "rgba(0, 0, 0, 0.08)",
-    borderRadius: BorderRadius.full,
     alignItems: "center",
     justifyContent: "center",
   },
-  secondaryButtonText: {
+  openEmailText: {
+    ...Typography.body,
     color: ObimoColors.textPrimary,
-    fontSize: 17,
-    fontWeight: "600",
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.4)",
+    justifyContent: "flex-end",
+  },
+  emailPickerSheet: {
+    backgroundColor: "#FFFFFF",
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingHorizontal: Spacing["2xl"],
+    paddingTop: Spacing.xl,
+  },
+  sheetHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: Spacing.xs,
+  },
+  sheetTitle: {
+    ...Typography.h3,
+    color: ObimoColors.textPrimary,
+  },
+  closeButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "rgba(0, 0, 0, 0.08)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  sheetSubtitle: {
+    ...Typography.body,
+    color: ObimoColors.textSecondary,
+    marginBottom: Spacing.xl,
+  },
+  emailOption: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: Spacing.lg,
+    gap: Spacing.lg,
+  },
+  emailOptionText: {
+    ...Typography.body,
+    color: ObimoColors.textPrimary,
   },
 });
