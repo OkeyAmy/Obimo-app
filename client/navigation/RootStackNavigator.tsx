@@ -1,10 +1,23 @@
 import React from "react";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
+import { Feather } from "@expo/vector-icons";
+
 import MainTabNavigator from "@/navigation/MainTabNavigator";
+import SplashScreen from "@/screens/SplashScreen";
+import WelcomeScreen from "@/screens/WelcomeScreen";
+import EmailAuthScreen from "@/screens/EmailAuthScreen";
+import EmailConfirmationScreen from "@/screens/EmailConfirmationScreen";
+import VideoOnboardingScreen from "@/screens/VideoOnboardingScreen";
 import ModalScreen from "@/screens/ModalScreen";
 import { useScreenOptions } from "@/hooks/useScreenOptions";
+import { ObimoColors } from "@/constants/theme";
 
 export type RootStackParamList = {
+  Splash: undefined;
+  Welcome: undefined;
+  EmailAuth: undefined;
+  EmailConfirmation: { email: string };
+  VideoOnboarding: undefined;
   Main: undefined;
   Modal: undefined;
 };
@@ -15,7 +28,51 @@ export default function RootStackNavigator() {
   const screenOptions = useScreenOptions();
 
   return (
-    <Stack.Navigator screenOptions={screenOptions}>
+    <Stack.Navigator
+      initialRouteName="Splash"
+      screenOptions={{
+        ...screenOptions,
+        contentStyle: {
+          backgroundColor: ObimoColors.background,
+        },
+      }}
+    >
+      <Stack.Screen
+        name="Splash"
+        component={SplashScreen}
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="Welcome"
+        component={WelcomeScreen}
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="EmailAuth"
+        component={EmailAuthScreen}
+        options={{
+          headerTitle: "",
+          headerBackTitle: "",
+          headerTransparent: true,
+          headerTintColor: ObimoColors.textPrimary,
+        }}
+      />
+      <Stack.Screen
+        name="EmailConfirmation"
+        component={EmailConfirmationScreen}
+        options={{
+          headerShown: false,
+          presentation: "fullScreenModal",
+        }}
+      />
+      <Stack.Screen
+        name="VideoOnboarding"
+        component={VideoOnboardingScreen}
+        options={{
+          headerShown: false,
+          animation: "fade",
+        }}
+      />
       <Stack.Screen
         name="Main"
         component={MainTabNavigator}
