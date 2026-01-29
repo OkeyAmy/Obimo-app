@@ -9,23 +9,27 @@ if (process.env.SENDGRID_API_KEY) {
   sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 }
 
-// In-memory store for verification codes (in production, use Redis or database)
-const verificationCodes: Map<string, { code: string; expiresAt: number }> = new Map();
-
 // Generate a 6-digit code
 function generateVerificationCode(): string {
   return Math.floor(100000 + Math.random() * 900000).toString();
 }
 
-// Clean up expired codes periodically
-setInterval(() => {
-  const now = Date.now();
-  for (const [email, data] of verificationCodes.entries()) {
-    if (data.expiresAt < now) {
-      verificationCodes.delete(email);
-    }
+// Clean up expired codes periodically (now uses database)
+setInterval(async () => {
+  try {
+    await storage.cleanExpiredCodes();
+  } catch (error) {
+    console.error("Failed to clean expired codes:", error);
   }
 }, 60000); // Clean every minute
+
+// Email validation regex
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+// Rate limit constants
+const MAX_CODE_REQUESTS_PER_HOUR = 5;
+const MAX_VERIFY_ATTEMPTS = 5;
+const RATE_LIMIT_WINDOW_MINUTES = 60;
 
 interface ReplitUser {
   id: string;
@@ -275,20 +279,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/auth/email/signup", async (req: Request, res: Response) => {
     const { email } = req.body;
     
-    if (!email || !email.includes("@")) {
-      return res.status(400).json({ error: "Invalid email" });
+    // Input validation
+    if (!email || !EMAIL_REGEX.test(email)) {
+      return res.status(400).json({ error: "Invalid email format" });
+    }
+
+    // Sanitize email
+    const sanitizedEmail = email.toLowerCase().trim();
+
+    // Rate limiting check
+    const canProceed = await storage.checkRateLimit(sanitizedEmail, "send_code", MAX_CODE_REQUESTS_PER_HOUR, RATE_LIMIT_WINDOW_MINUTES);
+    if (!canProceed) {
+      return res.status(429).json({ error: "Too many verification requests. Please try again later." });
     }
 
     // Generate a 6-digit code
     const code = generateVerificationCode();
     
-    // Store with 10-minute expiration
-    verificationCodes.set(email.toLowerCase(), {
-      code,
-      expiresAt: Date.now() + 10 * 60 * 1000,
-    });
+    // Store in database with 10-minute expiration
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+    await storage.saveVerificationCode(sanitizedEmail, code, expiresAt);
+    
+    // Increment rate limit counter
+    await storage.incrementRateLimit(sanitizedEmail, "send_code");
 
-    console.log(`Generated verification code for ${email}: ${code}`);
+    console.log(`Generated verification code for ${sanitizedEmail}: ${code}`);
 
     try {
       if (process.env.SENDGRID_API_KEY) {
@@ -346,20 +361,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/auth/email/resend", async (req: Request, res: Response) => {
     const { email } = req.body;
     
-    if (!email || !email.includes("@")) {
-      return res.status(400).json({ error: "Invalid email" });
+    // Input validation
+    if (!email || !EMAIL_REGEX.test(email)) {
+      return res.status(400).json({ error: "Invalid email format" });
+    }
+
+    // Sanitize email
+    const sanitizedEmail = email.toLowerCase().trim();
+
+    // Rate limiting check
+    const canProceed = await storage.checkRateLimit(sanitizedEmail, "send_code", MAX_CODE_REQUESTS_PER_HOUR, RATE_LIMIT_WINDOW_MINUTES);
+    if (!canProceed) {
+      return res.status(429).json({ error: "Too many verification requests. Please try again later." });
     }
 
     // Generate a new 6-digit code
     const code = generateVerificationCode();
     
-    // Store with 10-minute expiration
-    verificationCodes.set(email.toLowerCase(), {
-      code,
-      expiresAt: Date.now() + 10 * 60 * 1000,
-    });
+    // Store in database with 10-minute expiration
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+    await storage.saveVerificationCode(sanitizedEmail, code, expiresAt);
+    
+    // Increment rate limit counter
+    await storage.incrementRateLimit(sanitizedEmail, "send_code");
 
-    console.log(`Regenerated verification code for ${email}: ${code}`);
+    console.log(`Regenerated verification code for ${sanitizedEmail}: ${code}`);
 
     try {
       if (process.env.SENDGRID_API_KEY) {
@@ -417,77 +443,121 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/auth/email/verify", async (req: Request, res: Response) => {
     const { email, code } = req.body;
     
+    // Input validation
     if (!email || !code) {
       return res.status(400).json({ error: "Email and code are required" });
     }
 
-    const stored = verificationCodes.get(email.toLowerCase());
+    if (!EMAIL_REGEX.test(email)) {
+      return res.status(400).json({ error: "Invalid email format" });
+    }
+
+    // Sanitize inputs
+    const sanitizedEmail = email.toLowerCase().trim();
+    const sanitizedCode = code.trim();
+
+    // Get stored verification code from database
+    const stored = await storage.getVerificationCode(sanitizedEmail);
     
     if (!stored) {
       return res.status(400).json({ error: "No verification code found. Please request a new one." });
     }
     
-    if (stored.expiresAt < Date.now()) {
-      verificationCodes.delete(email.toLowerCase());
+    // Check expiration
+    if (stored.expiresAt < new Date()) {
+      await storage.deleteVerificationCode(sanitizedEmail);
       return res.status(400).json({ error: "Verification code expired. Please request a new one." });
     }
+
+    // Check max attempts (security measure)
+    if (stored.attempts >= MAX_VERIFY_ATTEMPTS) {
+      await storage.deleteVerificationCode(sanitizedEmail);
+      return res.status(400).json({ error: "Too many failed attempts. Please request a new code." });
+    }
     
-    if (stored.code !== code) {
+    // Verify code
+    if (stored.code !== sanitizedCode) {
+      await storage.incrementVerificationAttempts(sanitizedEmail);
       return res.status(400).json({ error: "Invalid verification code" });
     }
     
     // Code is valid - remove it so it can't be reused
-    verificationCodes.delete(email.toLowerCase());
+    await storage.deleteVerificationCode(sanitizedEmail);
     
-    console.log(`Email verified successfully: ${email}`);
+    console.log(`Email verified successfully: ${sanitizedEmail}`);
     
     // Create user in database if doesn't exist
+    let user;
+    let isNewUser = false;
     try {
-      let user = await storage.getUserByEmail(email);
+      user = await storage.getUserByEmail(sanitizedEmail);
       if (!user) {
-        user = await storage.createUser(email);
+        user = await storage.createUser(sanitizedEmail);
+        isNewUser = true;
         console.log(`Created new user: ${user.id}`);
+      } else {
+        console.log(`Returning user: ${user.id}`);
       }
     } catch (err) {
-      console.error("Failed to create user:", err);
+      console.error("Failed to create/get user:", err);
+      return res.status(500).json({ error: "Failed to process user account" });
     }
     
     res.json({ 
       success: true, 
       message: "Email verified successfully",
       user: {
-        email: email.toLowerCase(),
+        id: user.id,
+        email: user.email,
         verified: true,
+        isNewUser,
+        onboardingCompleted: user.onboardingCompleted,
       }
     });
   });
 
-  // Complete onboarding - save profile data
+  // Complete onboarding - save profile data to database
   app.post("/api/profile/complete-onboarding", async (req: Request, res: Response) => {
     try {
-      const { email, firstName, dateOfBirth, gender, photos, onboardingCompleted } = req.body;
+      const { email, firstName, dateOfBirth, gender, photos, onboardingCompleted, locationPermission, notificationPermission, latitude, longitude } = req.body;
       
-      // For now, we'll use a simple approach - in production, use proper session management
-      // The email should come from the session or auth token
+      // Input validation
+      if (!email || !EMAIL_REGEX.test(email)) {
+        return res.status(400).json({ error: "Invalid email" });
+      }
+
+      const sanitizedEmail = email.toLowerCase().trim();
+
+      // Check if user exists
+      const existingUser = await storage.getUserByEmail(sanitizedEmail);
+      if (!existingUser) {
+        return res.status(404).json({ error: "User not found" });
+      }
       
       const profileData = {
-        firstName,
+        firstName: firstName?.trim(),
         dateOfBirth,
         gender,
         photos,
         onboardingCompleted,
+        locationPermission,
+        notificationPermission,
+        latitude,
+        longitude,
       };
       
       // Validate the data
       const validatedData = updateProfileSchema.parse(profileData);
       
-      // For demo purposes, update the most recent user or use email from request
-      // In production, get email from authenticated session
-      console.log("Completing onboarding with data:", validatedData);
+      // Save to database
+      const updatedUser = await storage.updateUserProfile(sanitizedEmail, validatedData);
+      
+      console.log("Completed onboarding for user:", sanitizedEmail);
       
       res.json({ 
         success: true, 
-        message: "Onboarding completed successfully" 
+        message: "Onboarding completed successfully",
+        user: updatedUser
       });
     } catch (error: any) {
       console.error("Failed to complete onboarding:", error);
@@ -498,14 +568,94 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Update user location
+  app.post("/api/profile/update-location", async (req: Request, res: Response) => {
+    try {
+      const { email, latitude, longitude, locationPermission } = req.body;
+      
+      if (!email || !EMAIL_REGEX.test(email)) {
+        return res.status(400).json({ error: "Invalid email" });
+      }
+
+      const sanitizedEmail = email.toLowerCase().trim();
+
+      const updatedUser = await storage.updateUserProfile(sanitizedEmail, {
+        latitude: latitude?.toString(),
+        longitude: longitude?.toString(),
+        locationPermission,
+      });
+
+      if (!updatedUser) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      console.log(`Updated location for ${sanitizedEmail}: ${latitude}, ${longitude}`);
+      
+      res.json({ 
+        success: true, 
+        message: "Location updated successfully" 
+      });
+    } catch (error: any) {
+      console.error("Failed to update location:", error);
+      res.status(400).json({ error: "Failed to update location", details: error.message });
+    }
+  });
+
+  // Update user permissions
+  app.post("/api/profile/update-permissions", async (req: Request, res: Response) => {
+    try {
+      const { email, locationPermission, notificationPermission } = req.body;
+      
+      if (!email || !EMAIL_REGEX.test(email)) {
+        return res.status(400).json({ error: "Invalid email" });
+      }
+
+      const sanitizedEmail = email.toLowerCase().trim();
+
+      const updatedUser = await storage.updateUserProfile(sanitizedEmail, {
+        locationPermission,
+        notificationPermission,
+      });
+
+      if (!updatedUser) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      console.log(`Updated permissions for ${sanitizedEmail}`);
+      
+      res.json({ 
+        success: true, 
+        message: "Permissions updated successfully" 
+      });
+    } catch (error: any) {
+      console.error("Failed to update permissions:", error);
+      res.status(400).json({ error: "Failed to update permissions", details: error.message });
+    }
+  });
+
   // Get user profile
   app.get("/api/profile/:email", async (req: Request, res: Response) => {
     const { email } = req.params;
     
+    // Sanitize email
+    const sanitizedEmail = email.toLowerCase().trim();
+    
     try {
-      const user = await storage.getUserByEmail(email);
+      const user = await storage.getUserByEmail(sanitizedEmail);
       if (user) {
-        res.json(user);
+        // Don't expose sensitive internal fields
+        res.json({
+          id: user.id,
+          email: user.email,
+          firstName: user.firstName,
+          dateOfBirth: user.dateOfBirth,
+          gender: user.gender,
+          photos: user.photos,
+          locationPermission: user.locationPermission,
+          notificationPermission: user.notificationPermission,
+          onboardingCompleted: user.onboardingCompleted,
+          createdAt: user.createdAt,
+        });
       } else {
         res.status(404).json({ error: "User not found" });
       }
