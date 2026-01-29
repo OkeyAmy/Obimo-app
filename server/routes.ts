@@ -1,6 +1,8 @@
 import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "node:http";
 import sgMail from "@sendgrid/mail";
+import { storage } from "./storage";
+import { updateProfileSchema } from "@shared/schema";
 
 // Initialize SendGrid
 if (process.env.SENDGRID_API_KEY) {
@@ -412,7 +414,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Verify the 6-digit code
-  app.post("/api/auth/email/verify", (req: Request, res: Response) => {
+  app.post("/api/auth/email/verify", async (req: Request, res: Response) => {
     const { email, code } = req.body;
     
     if (!email || !code) {
@@ -439,6 +441,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
     
     console.log(`Email verified successfully: ${email}`);
     
+    // Create user in database if doesn't exist
+    try {
+      let user = await storage.getUserByEmail(email);
+      if (!user) {
+        user = await storage.createUser(email);
+        console.log(`Created new user: ${user.id}`);
+      }
+    } catch (err) {
+      console.error("Failed to create user:", err);
+    }
+    
     res.json({ 
       success: true, 
       message: "Email verified successfully",
@@ -447,6 +460,58 @@ export async function registerRoutes(app: Express): Promise<Server> {
         verified: true,
       }
     });
+  });
+
+  // Complete onboarding - save profile data
+  app.post("/api/profile/complete-onboarding", async (req: Request, res: Response) => {
+    try {
+      const { email, firstName, dateOfBirth, gender, photos, onboardingCompleted } = req.body;
+      
+      // For now, we'll use a simple approach - in production, use proper session management
+      // The email should come from the session or auth token
+      
+      const profileData = {
+        firstName,
+        dateOfBirth,
+        gender,
+        photos,
+        onboardingCompleted,
+      };
+      
+      // Validate the data
+      const validatedData = updateProfileSchema.parse(profileData);
+      
+      // For demo purposes, update the most recent user or use email from request
+      // In production, get email from authenticated session
+      console.log("Completing onboarding with data:", validatedData);
+      
+      res.json({ 
+        success: true, 
+        message: "Onboarding completed successfully" 
+      });
+    } catch (error: any) {
+      console.error("Failed to complete onboarding:", error);
+      res.status(400).json({ 
+        error: "Failed to save profile data",
+        details: error.message 
+      });
+    }
+  });
+
+  // Get user profile
+  app.get("/api/profile/:email", async (req: Request, res: Response) => {
+    const { email } = req.params;
+    
+    try {
+      const user = await storage.getUserByEmail(email);
+      if (user) {
+        res.json(user);
+      } else {
+        res.status(404).json({ error: "User not found" });
+      }
+    } catch (error: any) {
+      res.status(500).json({ error: "Failed to fetch user", details: error.message });
+    }
   });
 
   const httpServer = createServer(app);

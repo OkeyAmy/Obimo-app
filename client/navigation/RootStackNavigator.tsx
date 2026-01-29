@@ -8,6 +8,11 @@ import EmailAuthScreen from "@/screens/EmailAuthScreen";
 import EmailConfirmationScreen from "@/screens/EmailConfirmationScreen";
 import ReplitAuthScreen from "@/screens/ReplitAuthScreen";
 import ModalScreen from "@/screens/ModalScreen";
+import LocationPermissionScreen from "@/screens/onboarding/LocationPermissionScreen";
+import NotificationPermissionScreen from "@/screens/onboarding/NotificationPermissionScreen";
+import ProfileInfoScreen from "@/screens/onboarding/ProfileInfoScreen";
+import GenderScreen from "@/screens/onboarding/GenderScreen";
+import PhotoUploadScreen from "@/screens/onboarding/PhotoUploadScreen";
 import { ObimoColors } from "@/constants/theme";
 
 export type RootStackParamList = {
@@ -16,6 +21,11 @@ export type RootStackParamList = {
   EmailAuth: undefined;
   EmailConfirmation: { email: string };
   ReplitAuth: undefined;
+  OnboardingLocation: undefined;
+  OnboardingNotification: undefined;
+  OnboardingProfile: undefined;
+  OnboardingGender: { firstName: string; dateOfBirth: string };
+  OnboardingPhotos: { firstName: string; dateOfBirth: string; gender: string };
   Main: undefined;
   Modal: undefined;
 };
@@ -58,6 +68,26 @@ export default function RootStackNavigator() {
         options={{
           presentation: "fullScreenModal",
         }}
+      />
+      <Stack.Screen
+        name="OnboardingLocation"
+        component={LocationPermissionScreen}
+      />
+      <Stack.Screen
+        name="OnboardingNotification"
+        component={NotificationPermissionScreen}
+      />
+      <Stack.Screen
+        name="OnboardingProfile"
+        component={ProfileInfoScreen}
+      />
+      <Stack.Screen
+        name="OnboardingGender"
+        component={GenderScreen}
+      />
+      <Stack.Screen
+        name="OnboardingPhotos"
+        component={PhotoUploadScreen}
       />
       <Stack.Screen
         name="Main"
