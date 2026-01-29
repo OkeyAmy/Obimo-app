@@ -1,5 +1,5 @@
-import React, { useState } from "react";
-import { View, StyleSheet, Pressable, Modal, Image } from "react-native";
+import React, { useState, useRef } from "react";
+import { View, StyleSheet, Pressable, Modal, Image, ScrollView, Dimensions, ActivityIndicator } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -14,11 +14,16 @@ import { apiRequest } from "@/lib/query-client";
 type NavigationProp = NativeStackNavigationProp<RootStackParamList, "OnboardingPhotos">;
 type PhotoRouteProp = RouteProp<RootStackParamList, "OnboardingPhotos">;
 
+const { width: SCREEN_WIDTH } = Dimensions.get("window");
+const PHOTO_WIDTH = (SCREEN_WIDTH - Spacing.xl * 2 - Spacing.md) / 2;
+const PHOTO_HEIGHT = PHOTO_WIDTH * (4 / 3);
+
 export default function PhotoUploadScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<NavigationProp>();
   const route = useRoute<PhotoRouteProp>();
   const { email, firstName, dateOfBirth, gender } = route.params;
+  const scrollViewRef = useRef<ScrollView>(null);
 
   const [photos, setPhotos] = useState<string[]>([]);
   const [showSourceModal, setShowSourceModal] = useState(false);
@@ -40,7 +45,11 @@ export default function PhotoUploadScreen() {
       });
 
       if (!result.canceled && result.assets[0]) {
-        setPhotos([...photos, result.assets[0].uri]);
+        const newPhotos = [...photos, result.assets[0].uri];
+        setPhotos(newPhotos);
+        setTimeout(() => {
+          scrollViewRef.current?.scrollToEnd({ animated: true });
+        }, 100);
       }
     } else {
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -55,7 +64,11 @@ export default function PhotoUploadScreen() {
       });
 
       if (!result.canceled && result.assets[0]) {
-        setPhotos([...photos, result.assets[0].uri]);
+        const newPhotos = [...photos, result.assets[0].uri];
+        setPhotos(newPhotos);
+        setTimeout(() => {
+          scrollViewRef.current?.scrollToEnd({ animated: true });
+        }, 100);
       }
     }
   };
@@ -104,54 +117,61 @@ export default function PhotoUploadScreen() {
       <View style={styles.content}>
         <ThemedText style={styles.title}>Choose your photos</ThemedText>
         <ThemedText style={styles.subtitle}>
-          {hasPhotos
-            ? "Quick tip: People with at least 4 photos get more matches"
-            : "Upload at least 2 photos to get started"}
+          Quick tip: People with at least 4 photos get more matches
         </ThemedText>
 
-        <View style={styles.photoGrid}>
-          {[0, 1].map((index) => (
-            <Pressable
-              key={index}
-              style={styles.photoSlot}
-              onPress={() => {
-                if (photos[index]) {
-                  removePhoto(index);
-                } else {
-                  setShowSourceModal(true);
-                }
-              }}
-              testID={`photo-slot-${index}`}
-            >
-              {photos[index] ? (
-                <Image source={{ uri: photos[index] }} style={styles.photo} />
-              ) : (
-                <>
-                  <MaterialCommunityIcons
-                    name="camera-outline"
-                    size={32}
-                    color={ObimoColors.textSecondary}
-                  />
-                  <View style={styles.addIcon}>
-                    <MaterialCommunityIcons name="plus" size={16} color={ObimoColors.textSecondary} />
-                  </View>
-                </>
-              )}
-            </Pressable>
+        <ScrollView
+          ref={scrollViewRef}
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.photoScrollContainer}
+        >
+          {photos.map((photo, index) => (
+            <View key={index} style={styles.photoSlotWrapper}>
+              <Pressable
+                style={styles.photoSlot}
+                onPress={() => removePhoto(index)}
+                testID={`photo-slot-${index}`}
+              >
+                <Image source={{ uri: photo }} style={styles.photo} />
+                <View style={styles.removeButton}>
+                  <MaterialCommunityIcons name="close" size={14} color="#FFFFFF" />
+                </View>
+              </Pressable>
+            </View>
           ))}
-        </View>
+          
+          <View style={styles.photoSlotWrapper}>
+            <Pressable
+              style={styles.photoSlot}
+              onPress={() => setShowSourceModal(true)}
+              testID="photo-slot-add"
+            >
+              <MaterialCommunityIcons
+                name="camera-outline"
+                size={32}
+                color={ObimoColors.textSecondary}
+              />
+              <View style={styles.addIcon}>
+                <MaterialCommunityIcons name="plus" size={16} color={ObimoColors.textSecondary} />
+              </View>
+            </Pressable>
+          </View>
+        </ScrollView>
       </View>
 
       <View style={styles.footer}>
         <Pressable
-          style={[styles.continueButton, isLoading && styles.buttonDisabled]}
-          onPress={hasPhotos ? handleContinue : () => setShowSourceModal(true)}
-          disabled={isLoading}
+          style={[styles.continueButton, (!hasPhotos || isLoading) && styles.buttonDisabled]}
+          onPress={handleContinue}
+          disabled={!hasPhotos || isLoading}
           testID="button-upload-photos"
         >
-          <ThemedText style={styles.continueButtonText}>
-            {hasPhotos ? "Continue" : "Upload photos"}
-          </ThemedText>
+          {isLoading ? (
+            <ActivityIndicator color="#FFFFFF" />
+          ) : (
+            <ThemedText style={styles.continueButtonText}>Continue</ThemedText>
+          )}
         </Pressable>
       </View>
 
@@ -218,7 +238,6 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
-    paddingTop: Spacing["3xl"],
   },
   title: {
     ...Typography.h2,
@@ -230,13 +249,17 @@ const styles = StyleSheet.create({
     color: ObimoColors.textSecondary,
     marginBottom: Spacing["3xl"],
   },
-  photoGrid: {
-    flexDirection: "row",
-    gap: Spacing.lg,
+  photoScrollContainer: {
+    paddingRight: Spacing.xl,
+    gap: Spacing.md,
+  },
+  photoSlotWrapper: {
+    width: PHOTO_WIDTH,
+    height: PHOTO_HEIGHT,
   },
   photoSlot: {
-    flex: 1,
-    aspectRatio: 3 / 4,
+    width: "100%",
+    height: "100%",
     backgroundColor: ObimoColors.background,
     borderRadius: BorderRadius.md,
     alignItems: "center",
@@ -247,6 +270,17 @@ const styles = StyleSheet.create({
     width: "100%",
     height: "100%",
     resizeMode: "cover",
+  },
+  removeButton: {
+    position: "absolute",
+    top: Spacing.sm,
+    right: Spacing.sm,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: "rgba(0, 0, 0, 0.6)",
+    alignItems: "center",
+    justifyContent: "center",
   },
   addIcon: {
     position: "absolute",
