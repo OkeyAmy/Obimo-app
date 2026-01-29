@@ -134,10 +134,21 @@ export default function EmailConfirmationScreen() {
       
       if (response.ok && data.success) {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        navigation.reset({
-          index: 0,
-          routes: [{ name: "OnboardingLocation", params: { email } }],
-        });
+        
+        // Check if user has already completed onboarding (returning user)
+        if (data.user?.onboardingCompleted) {
+          // Returning user - go straight to main app
+          navigation.reset({
+            index: 0,
+            routes: [{ name: "Main", params: { email } }],
+          });
+        } else {
+          // New user - start onboarding flow
+          navigation.reset({
+            index: 0,
+            routes: [{ name: "OnboardingLocation", params: { email } }],
+          });
+        }
       } else {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
         setError(data.error || "Invalid code. Please try again.");
