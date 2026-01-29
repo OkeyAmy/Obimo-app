@@ -50,9 +50,35 @@ export default function EmailConfirmationScreen() {
   const [isVerifying, setIsVerifying] = useState(false);
   const [showEmailPicker, setShowEmailPicker] = useState(false);
   const [error, setError] = useState("");
+  const [isSendingInitial, setIsSendingInitial] = useState(true);
   const inputRef = useRef<TextInput>(null);
 
   const contentOpacity = useSharedValue(0);
+
+  // Send verification code on mount
+  useEffect(() => {
+    const sendInitialCode = async () => {
+      try {
+        const response = await fetch(`${getApiUrl()}api/auth/email/signup`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email }),
+        });
+        
+        const data = await response.json();
+        
+        if (!response.ok) {
+          setError(data.error || "Failed to send verification code");
+        }
+      } catch (err) {
+        setError("Failed to send verification code. Please try again.");
+      } finally {
+        setIsSendingInitial(false);
+      }
+    };
+    
+    sendInitialCode();
+  }, [email]);
 
   useEffect(() => {
     contentOpacity.value = withTiming(1, { duration: 400, easing: Easing.out(Easing.cubic) });
