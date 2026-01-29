@@ -22,13 +22,13 @@ export default function GenderScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<NavigationProp>();
   const route = useRoute<GenderRouteProp>();
-  const { firstName, dateOfBirth } = route.params;
+  const { email, firstName, dateOfBirth } = route.params;
   
   const [selectedGender, setSelectedGender] = useState<string | null>(null);
 
   const handleSelectGender = (genderId: string) => {
     setSelectedGender(genderId);
-    navigation.navigate("OnboardingPhotos", { firstName, dateOfBirth, gender: genderId });
+    navigation.navigate("OnboardingPhotos", { email, firstName, dateOfBirth, gender: genderId });
   };
 
   return (

@@ -18,7 +18,7 @@ export default function PhotoUploadScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<NavigationProp>();
   const route = useRoute<PhotoRouteProp>();
-  const { firstName, dateOfBirth, gender } = route.params;
+  const { email, firstName, dateOfBirth, gender } = route.params;
 
   const [photos, setPhotos] = useState<string[]>([]);
   const [showSourceModal, setShowSourceModal] = useState(false);
@@ -70,6 +70,7 @@ export default function PhotoUploadScreen() {
     setIsLoading(true);
     try {
       await apiRequest("POST", "/api/profile/complete-onboarding", {
+        email,
         firstName,
         dateOfBirth,
         gender,

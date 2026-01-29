@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { View, StyleSheet, TextInput, Modal, Pressable } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 
@@ -10,10 +10,14 @@ import { ObimoColors, Spacing, Typography, BorderRadius } from "@/constants/them
 import { RootStackParamList } from "@/navigation/RootStackNavigator";
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList, "OnboardingProfile">;
+type ProfileRouteProp = RouteProp<RootStackParamList, "OnboardingProfile">;
 
 export default function ProfileInfoScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<NavigationProp>();
+  const route = useRoute<ProfileRouteProp>();
+
+  const userEmail = route.params?.email;
   
   const [firstName, setFirstName] = useState("");
   const [day, setDay] = useState("");
@@ -58,7 +62,7 @@ export default function ProfileInfoScreen() {
   const handleConfirmAge = () => {
     setShowAgeModal(false);
     const dateOfBirth = `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
-    navigation.navigate("OnboardingGender", { firstName, dateOfBirth });
+    navigation.navigate("OnboardingGender", { email: userEmail, firstName, dateOfBirth });
   };
 
   return (

@@ -110,7 +110,7 @@ export default function EmailConfirmationScreen() {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         navigation.reset({
           index: 0,
-          routes: [{ name: "OnboardingLocation" }],
+          routes: [{ name: "OnboardingLocation", params: { email } }],
         });
       } else {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);

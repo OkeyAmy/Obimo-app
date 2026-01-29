@@ -1,7 +1,7 @@
-import React from "react";
-import { View, StyleSheet, Platform, Pressable } from "react-native";
+import React, { useState } from "react";
+import { View, StyleSheet, Platform, Pressable, ActivityIndicator } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import * as Notifications from "expo-notifications";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
@@ -9,22 +9,46 @@ import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { ThemedText } from "@/components/ThemedText";
 import { ObimoColors, Spacing, Typography, BorderRadius } from "@/constants/theme";
 import { RootStackParamList } from "@/navigation/RootStackNavigator";
+import { getApiUrl } from "@/lib/query-client";
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList, "OnboardingNotification">;
+type NotificationRouteProp = RouteProp<RootStackParamList, "OnboardingNotification">;
 
 export default function NotificationPermissionScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<NavigationProp>();
+  const route = useRoute<NotificationRouteProp>();
+  const [isLoading, setIsLoading] = useState(false);
+
+  const userEmail = route.params?.email;
 
   const handleContinue = async () => {
-    if (Platform.OS !== "web") {
-      try {
-        await Notifications.requestPermissionsAsync();
-      } catch (e) {
-        console.log("Notification permission error:", e);
+    setIsLoading(true);
+    let notificationGranted = false;
+
+    try {
+      if (Platform.OS !== "web") {
+        const result = await Notifications.requestPermissionsAsync();
+        notificationGranted = result.granted;
       }
+
+      if (userEmail) {
+        const apiUrl = getApiUrl();
+        await fetch(new URL("/api/profile/update-permissions", apiUrl).toString(), {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            email: userEmail,
+            notificationPermission: notificationGranted,
+          }),
+        });
+      }
+    } catch (e) {
+      console.log("Notification permission error:", e);
+    } finally {
+      setIsLoading(false);
+      navigation.navigate("OnboardingProfile", { email: userEmail });
     }
-    navigation.navigate("OnboardingProfile");
   };
 
   return (
@@ -42,11 +66,16 @@ export default function NotificationPermissionScreen() {
 
       <View style={styles.footer}>
         <Pressable
-          style={styles.continueButton}
+          style={[styles.continueButton, isLoading && styles.continueButtonDisabled]}
           onPress={handleContinue}
+          disabled={isLoading}
           testID="button-notification-continue"
         >
-          <ThemedText style={styles.continueButtonText}>Continue</ThemedText>
+          {isLoading ? (
+            <ActivityIndicator color="#FFFFFF" />
+          ) : (
+            <ThemedText style={styles.continueButtonText}>Continue</ThemedText>
+          )}
         </Pressable>
       </View>
     </View>
@@ -96,5 +125,8 @@ const styles = StyleSheet.create({
     ...Typography.body,
     fontWeight: "600",
     color: "#FFFFFF",
+  },
+  continueButtonDisabled: {
+    opacity: 0.7,
   },
 });

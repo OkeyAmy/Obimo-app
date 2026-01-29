@@ -21,11 +21,11 @@ export type RootStackParamList = {
   EmailAuth: undefined;
   EmailConfirmation: { email: string };
   ReplitAuth: undefined;
-  OnboardingLocation: undefined;
-  OnboardingNotification: undefined;
-  OnboardingProfile: undefined;
-  OnboardingGender: { firstName: string; dateOfBirth: string };
-  OnboardingPhotos: { firstName: string; dateOfBirth: string; gender: string };
+  OnboardingLocation: { email?: string };
+  OnboardingNotification: { email?: string };
+  OnboardingProfile: { email?: string };
+  OnboardingGender: { email?: string; firstName: string; dateOfBirth: string };
+  OnboardingPhotos: { email?: string; firstName: string; dateOfBirth: string; gender: string };
   Main: undefined;
   Modal: undefined;
 };
