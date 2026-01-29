@@ -68,7 +68,7 @@ export default function ProfileInfoScreen() {
   return (
     <View style={[styles.container, { paddingTop: insets.top + Spacing.xl, paddingBottom: insets.bottom }]}>
       <View style={styles.progressBar}>
-        <View style={styles.progressFill} />
+        <View style={[styles.progressFill, { width: "60%" }]} />
       </View>
 
       <View style={styles.content}>
@@ -178,7 +178,6 @@ const styles = StyleSheet.create({
     marginBottom: Spacing["3xl"],
   },
   progressFill: {
-    width: "20%",
     height: "100%",
     backgroundColor: ObimoColors.primary,
     borderRadius: 2,

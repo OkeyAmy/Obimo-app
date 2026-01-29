@@ -97,6 +97,10 @@ export default function PhotoUploadScreen() {
 
   return (
     <View style={[styles.container, { paddingTop: insets.top + Spacing.xl, paddingBottom: insets.bottom }]}>
+      <View style={styles.progressBar}>
+        <View style={[styles.progressFill, { width: "100%" }]} />
+      </View>
+      
       <View style={styles.content}>
         <ThemedText style={styles.title}>Choose your photos</ThemedText>
         <ThemedText style={styles.subtitle}>
@@ -200,6 +204,17 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: ObimoColors.surface,
     paddingHorizontal: Spacing.xl,
+  },
+  progressBar: {
+    height: 4,
+    backgroundColor: ObimoColors.background,
+    borderRadius: 2,
+    marginBottom: Spacing["3xl"],
+  },
+  progressFill: {
+    height: "100%",
+    backgroundColor: ObimoColors.primary,
+    borderRadius: 2,
   },
   content: {
     flex: 1,
