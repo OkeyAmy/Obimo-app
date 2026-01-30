@@ -39,15 +39,26 @@ Preferred communication style: Simple, everyday language.
 - **Components**: Themed components (`ThemedText`, `ThemedView`, `Button`, `Card`) support light/dark modes
 
 ### Navigation Structure
-1. **Root Stack**: Splash → Welcome → EmailAuth → EmailConfirmation → Main
-2. **Main Tabs**: Home and Profile tabs with nested stack navigators
+1. **Root Stack**: Splash → Welcome → EmailAuth → EmailConfirmation → Location → Notifications → ProfileInfo → Photos → Main
+2. **Main Tabs**: Discover (swipe cards), Map (journey tracking), Connects (connections), Profile
 3. **Modals**: Full-screen modal presentation for overlays
+
+### AI Recommendation System
+- **Provider**: Google Gemini AI (gemini-2.5-flash model)
+- **Engine**: `server/recommendation-engine.ts` - singleton class that generates personalized recommendations
+- **Scoring Factors**: Proximity (location-based), interaction patterns, past connections (reunions)
+- **AI Enhancement**: Gemini analyzes user behavior to re-rank and enhance recommendations
+- **Training Signals**: All user interactions are logged to `ai_training_signals` table for learning
+- **Fallback**: Graceful degradation when API is rate-limited or unavailable
 
 ## External Dependencies
 
 ### Third-Party Services
 - **Video Hosting**: Currently using Google's sample video CDN for welcome screen background
 - **Database**: PostgreSQL (configured via `DATABASE_URL` environment variable)
+- **AI/ML**: Google Gemini API for personalized recommendations and explanations
+- **Email**: SendGrid for email verification codes
+- **Maps**: react-native-maps (Google Maps on native, web fallback with location list)
 
 ### Key NPM Packages
 - **expo**: Core framework for cross-platform mobile development
@@ -55,11 +66,36 @@ Preferred communication style: Simple, everyday language.
 - **expo-haptics**: Tactile feedback for button interactions
 - **react-native-reanimated**: High-performance animations
 - **react-native-gesture-handler**: Touch gesture handling
+- **react-native-maps**: Native map display with markers and clustering
 - **drizzle-orm**: Type-safe database ORM
 - **@tanstack/react-query**: Server state management and caching
+- **@google/genai**: Google Gemini AI SDK for recommendations
 - **express**: Backend HTTP server
 
 ### Environment Variables
 - `DATABASE_URL`: PostgreSQL connection string (required for database operations)
 - `EXPO_PUBLIC_DOMAIN`: API server domain for client requests
 - `REPLIT_DEV_DOMAIN`: Development domain for Replit environment
+- `GEMINI_API_KEY`: Google Gemini API key for AI-powered recommendations
+- `SENDGRID_API_KEY`: SendGrid API key for email verification
+- `SESSION_SECRET`: Secret for session management
+
+### API Endpoints
+
+#### Recommendations
+- `GET /api/recommendations/:userId` - Get existing recommendations for a user
+- `POST /api/recommendations/:userId/generate` - Generate fresh AI-powered recommendations
+- `GET /api/recommendations/:userId/explain/:targetUserId` - Get AI explanation for why two users might connect
+- `PATCH /api/recommendations/:id` - Update recommendation after user action
+
+#### Interactions
+- `POST /api/interactions` - Log user interaction (like, pass, view, etc.)
+- `GET /api/interactions/:userId` - Get user's interaction history
+
+#### Discovery
+- `GET /api/discover?userId=...` - Get users for discovery swipe cards
+
+#### Connections
+- `GET /api/connections/:userId` - Get user's connections
+- `POST /api/connections` - Create new connection request
+- `PATCH /api/connections/:id` - Update connection status
