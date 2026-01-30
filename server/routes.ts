@@ -635,7 +635,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Get user profile
   app.get("/api/profile/:email", async (req: Request, res: Response) => {
-    const { email } = req.params;
+    const email = req.params.email as string;
     
     // Sanitize email
     const sanitizedEmail = email.toLowerCase().trim();
@@ -661,6 +661,387 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
     } catch (error: any) {
       res.status(500).json({ error: "Failed to fetch user", details: error.message });
+    }
+  });
+
+  // ============= LOCATION ROUTES =============
+
+  // Get all locations
+  app.get("/api/locations", async (req: Request, res: Response) => {
+    try {
+      const limit = parseInt(req.query.limit as string) || 100;
+      const locationsList = await storage.getLocations(limit);
+      res.json(locationsList);
+    } catch (error: any) {
+      res.status(500).json({ error: "Failed to fetch locations", details: error.message });
+    }
+  });
+
+  // Get nearby locations
+  app.get("/api/locations/nearby", async (req: Request, res: Response) => {
+    try {
+      const lat = parseFloat(req.query.lat as string);
+      const lng = parseFloat(req.query.lng as string);
+      const radius = parseFloat(req.query.radius as string) || 50;
+
+      if (isNaN(lat) || isNaN(lng)) {
+        return res.status(400).json({ error: "Latitude and longitude are required" });
+      }
+
+      const nearbyLocations = await storage.getNearbyLocations(lat, lng, radius);
+      res.json(nearbyLocations);
+    } catch (error: any) {
+      res.status(500).json({ error: "Failed to fetch nearby locations", details: error.message });
+    }
+  });
+
+  // Get location by ID
+  app.get("/api/locations/:id", async (req: Request, res: Response) => {
+    try {
+      const location = await storage.getLocationById(req.params.id as string);
+      if (location) {
+        res.json(location);
+      } else {
+        res.status(404).json({ error: "Location not found" });
+      }
+    } catch (error: any) {
+      res.status(500).json({ error: "Failed to fetch location", details: error.message });
+    }
+  });
+
+  // ============= MAP MARKER ROUTES =============
+
+  // Get all visible map markers
+  app.get("/api/markers", async (req: Request, res: Response) => {
+    try {
+      const markers = await storage.getMapMarkers();
+      res.json(markers);
+    } catch (error: any) {
+      res.status(500).json({ error: "Failed to fetch markers", details: error.message });
+    }
+  });
+
+  // Get markers by location
+  app.get("/api/markers/location/:locationId", async (req: Request, res: Response) => {
+    try {
+      const markers = await storage.getMapMarkersByLocation(req.params.locationId as string);
+      res.json(markers);
+    } catch (error: any) {
+      res.status(500).json({ error: "Failed to fetch markers", details: error.message });
+    }
+  });
+
+  // ============= MAP PROVIDER ROUTES =============
+
+  // Get active map provider
+  app.get("/api/map/provider", async (req: Request, res: Response) => {
+    try {
+      const provider = await storage.getActiveMapProvider();
+      res.json(provider || { provider: 'mapbox', isAvailable: true });
+    } catch (error: any) {
+      res.status(500).json({ error: "Failed to fetch map provider", details: error.message });
+    }
+  });
+
+  // Report map provider usage
+  app.post("/api/map/provider/usage", async (req: Request, res: Response) => {
+    try {
+      const { provider, usageCount = 1 } = req.body;
+      
+      const status = await storage.getMapProviderStatus(provider);
+      if (status) {
+        const newDailyCount = (status.dailyUsageCount || 0) + usageCount;
+        const newMonthlyCount = (status.monthlyUsageCount || 0) + usageCount;
+        
+        let isAvailable = true;
+        if (status.dailyUsageLimit && newDailyCount >= status.dailyUsageLimit) {
+          isAvailable = false;
+        }
+        if (status.monthlyUsageLimit && newMonthlyCount >= status.monthlyUsageLimit) {
+          isAvailable = false;
+        }
+        
+        await storage.updateMapProviderStatus(provider, {
+          dailyUsageCount: newDailyCount,
+          monthlyUsageCount: newMonthlyCount,
+          isAvailable,
+          lastHealthCheck: new Date(),
+        });
+      }
+      
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ error: "Failed to update usage", details: error.message });
+    }
+  });
+
+  // Report map provider error (for fallback logic)
+  app.post("/api/map/provider/error", async (req: Request, res: Response) => {
+    try {
+      const { provider, error: errorMessage } = req.body;
+      
+      const status = await storage.getMapProviderStatus(provider);
+      if (status) {
+        const newErrorCount = (status.errorCount || 0) + 1;
+        const isAvailable = newErrorCount < 10; // Disable after 10 errors
+        
+        await storage.updateMapProviderStatus(provider, {
+          errorCount: newErrorCount,
+          lastError: errorMessage,
+          lastErrorAt: new Date(),
+          isAvailable,
+        });
+        
+        // If provider became unavailable, switch to fallback
+        if (!isAvailable) {
+          const fallbackProvider = provider === 'google' ? 'mapbox' : 'google';
+          await storage.updateMapProviderStatus(fallbackProvider, { isPrimary: true });
+        }
+      }
+      
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ error: "Failed to report error", details: error.message });
+    }
+  });
+
+  // ============= DISCOVER / USER ROUTES =============
+
+  // Get users for discover feed
+  app.get("/api/discover", async (req: Request, res: Response) => {
+    try {
+      const userId = req.query.userId as string;
+      const limit = parseInt(req.query.limit as string) || 20;
+      
+      if (!userId) {
+        return res.status(400).json({ error: "User ID is required" });
+      }
+      
+      const discoverUsers = await storage.getDiscoverUsers(userId, limit);
+      res.json(discoverUsers);
+    } catch (error: any) {
+      res.status(500).json({ error: "Failed to fetch discover users", details: error.message });
+    }
+  });
+
+  // Get nearby users
+  app.get("/api/users/nearby", async (req: Request, res: Response) => {
+    try {
+      const lat = parseFloat(req.query.lat as string);
+      const lng = parseFloat(req.query.lng as string);
+      const radius = parseFloat(req.query.radius as string) || 10;
+      const excludeUserId = req.query.excludeUserId as string;
+
+      if (isNaN(lat) || isNaN(lng) || !excludeUserId) {
+        return res.status(400).json({ error: "Latitude, longitude, and excludeUserId are required" });
+      }
+
+      const nearbyUsers = await storage.getNearbyUsers(lat, lng, radius, excludeUserId);
+      res.json(nearbyUsers);
+    } catch (error: any) {
+      res.status(500).json({ error: "Failed to fetch nearby users", details: error.message });
+    }
+  });
+
+  // ============= CONNECTION ROUTES =============
+
+  // Get user connections
+  app.get("/api/connections/:userId", async (req: Request, res: Response) => {
+    try {
+      const connectionsList = await storage.getConnections(req.params.userId as string);
+      res.json(connectionsList);
+    } catch (error: any) {
+      res.status(500).json({ error: "Failed to fetch connections", details: error.message });
+    }
+  });
+
+  // Create connection (like/super-like)
+  app.post("/api/connections", async (req: Request, res: Response) => {
+    try {
+      const { userId, connectedUserId, connectionType = "standard" } = req.body;
+      
+      if (!userId || !connectedUserId) {
+        return res.status(400).json({ error: "Both user IDs are required" });
+      }
+      
+      const connection = await storage.createConnection({
+        userId,
+        connectedUserId,
+        connectionType,
+        status: "pending",
+      });
+      
+      // Log interaction for AI learning
+      await storage.logInteraction({
+        userId,
+        targetUserId: connectedUserId,
+        interactionType: connectionType === "super" ? "super_like" : "like",
+        context: "discover",
+      });
+      
+      res.json(connection);
+    } catch (error: any) {
+      res.status(500).json({ error: "Failed to create connection", details: error.message });
+    }
+  });
+
+  // Update connection status
+  app.patch("/api/connections/:id", async (req: Request, res: Response) => {
+    try {
+      const { status } = req.body;
+      const connection = await storage.updateConnectionStatus(req.params.id as string, status);
+      
+      if (connection) {
+        res.json(connection);
+      } else {
+        res.status(404).json({ error: "Connection not found" });
+      }
+    } catch (error: any) {
+      res.status(500).json({ error: "Failed to update connection", details: error.message });
+    }
+  });
+
+  // ============= RECOMMENDATION ROUTES =============
+
+  // Get recommendations for user
+  app.get("/api/recommendations/:userId", async (req: Request, res: Response) => {
+    try {
+      const recs = await storage.getRecommendationsForUser(req.params.userId as string);
+      res.json(recs);
+    } catch (error: any) {
+      res.status(500).json({ error: "Failed to fetch recommendations", details: error.message });
+    }
+  });
+
+  // Update recommendation (after user action)
+  app.patch("/api/recommendations/:id", async (req: Request, res: Response) => {
+    try {
+      const updates = req.body;
+      const rec = await storage.updateRecommendation(req.params.id as string, updates);
+      
+      if (rec) {
+        res.json(rec);
+      } else {
+        res.status(404).json({ error: "Recommendation not found" });
+      }
+    } catch (error: any) {
+      res.status(500).json({ error: "Failed to update recommendation", details: error.message });
+    }
+  });
+
+  // ============= INTERACTION ROUTES =============
+
+  // Log user interaction
+  app.post("/api/interactions", async (req: Request, res: Response) => {
+    try {
+      const interactionData = req.body;
+      
+      if (!interactionData.userId || !interactionData.interactionType) {
+        return res.status(400).json({ error: "userId and interactionType are required" });
+      }
+      
+      const interaction = await storage.logInteraction(interactionData);
+      res.json(interaction);
+    } catch (error: any) {
+      res.status(500).json({ error: "Failed to log interaction", details: error.message });
+    }
+  });
+
+  // Get user interactions
+  app.get("/api/interactions/:userId", async (req: Request, res: Response) => {
+    try {
+      const limit = parseInt(req.query.limit as string) || 50;
+      const interactions = await storage.getUserInteractions(req.params.userId as string, limit);
+      res.json(interactions);
+    } catch (error: any) {
+      res.status(500).json({ error: "Failed to fetch interactions", details: error.message });
+    }
+  });
+
+  // ============= USER LOCATION HISTORY ROUTES =============
+
+  // Get user's travel history
+  app.get("/api/travel-history/:userId", async (req: Request, res: Response) => {
+    try {
+      const history = await storage.getUserLocationHistory(req.params.userId as string);
+      res.json(history);
+    } catch (error: any) {
+      res.status(500).json({ error: "Failed to fetch travel history", details: error.message });
+    }
+  });
+
+  // Log a visit to a location
+  app.post("/api/travel-history", async (req: Request, res: Response) => {
+    try {
+      const { userId, locationId, durationDays, photos, notes, isPublic = true } = req.body;
+      
+      if (!userId || !locationId) {
+        return res.status(400).json({ error: "userId and locationId are required" });
+      }
+      
+      const visit = await storage.logUserLocationVisit({
+        userId,
+        locationId,
+        durationDays,
+        photos,
+        notes,
+        isPublic,
+      });
+      
+      res.json(visit);
+    } catch (error: any) {
+      res.status(500).json({ error: "Failed to log visit", details: error.message });
+    }
+  });
+
+  // ============= MESSAGE ROUTES =============
+
+  // Get messages for a connection
+  app.get("/api/messages/:connectionId", async (req: Request, res: Response) => {
+    try {
+      const limit = parseInt(req.query.limit as string) || 50;
+      const msgs = await storage.getMessages(req.params.connectionId as string, limit);
+      res.json(msgs);
+    } catch (error: any) {
+      res.status(500).json({ error: "Failed to fetch messages", details: error.message });
+    }
+  });
+
+  // Send a message
+  app.post("/api/messages", async (req: Request, res: Response) => {
+    try {
+      const { connectionId, senderId, content, messageType = "text" } = req.body;
+      
+      if (!connectionId || !senderId || !content) {
+        return res.status(400).json({ error: "connectionId, senderId, and content are required" });
+      }
+      
+      const message = await storage.sendMessage({
+        connectionId,
+        senderId,
+        content,
+        messageType,
+      });
+      
+      res.json(message);
+    } catch (error: any) {
+      res.status(500).json({ error: "Failed to send message", details: error.message });
+    }
+  });
+
+  // Mark messages as read
+  app.post("/api/messages/:connectionId/read", async (req: Request, res: Response) => {
+    try {
+      const { userId } = req.body;
+      
+      if (!userId) {
+        return res.status(400).json({ error: "userId is required" });
+      }
+      
+      await storage.markMessagesAsRead(req.params.connectionId as string, userId);
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ error: "Failed to mark messages as read", details: error.message });
     }
   });
 

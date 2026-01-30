@@ -1,6 +1,7 @@
 import express from "express";
 import type { Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
+import { seedDatabase } from "./seed";
 import * as fs from "fs";
 import * as path from "path";
 
@@ -235,6 +236,13 @@ function setupErrorHandler(app: express.Application) {
   const server = await registerRoutes(app);
 
   setupErrorHandler(app);
+
+  // Seed database with sample data
+  try {
+    await seedDatabase();
+  } catch (error) {
+    console.error("Failed to seed database:", error);
+  }
 
   const port = parseInt(process.env.PORT || "5000", 10);
   server.listen(
