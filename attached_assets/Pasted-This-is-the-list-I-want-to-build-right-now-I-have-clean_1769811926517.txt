@@ -1,0 +1,201 @@
+This is the list I want to build right now. I have cleaned it up, organized it, and expanded it into a complete plan while keeping the same tone and intent I used. I also added the things that were missing so the entire setup is clear and build ready.
+
+## 1. Overall Goal
+
+I want to build a location based application that uses interactive maps and 3D maps, supports AI powered recommendations, and scales as more users join. The system must be production ready, consistent in design, and built with a clear workflow from database to UI to AI.
+
+The app must always work even if one map provider becomes unavailable or usage limits are reached.
+
+## 2. Core Technology Stack
+
+### Maps and Visualization
+
+We will use two map providers together
+
+Google 3D Map Visualization
+Used primarily for 3D map experiences and advanced visualization
+
+Mapbox
+Used as a fallback and also for standard map rendering
+
+If Google 3D map quota is exhausted, the system must automatically switch to Mapbox without breaking functionality
+
+Both map providers must support
+Map markers
+Clustering
+3D view where applicable
+Smooth zoom and camera movement
+
+### AI
+
+We will use the Gemini 3 model
+
+The API key will be provided later
+
+AI will be used for
+User recommendations
+Learning from user behavior
+Improving recommendations as more users join the app
+Context aware suggestions based on location, activity, and interactions
+
+## 3. Database First Architecture
+
+There must be no hardcoded sample data in the application code
+
+All sample data must be stored directly in the database
+
+All tables must be created explicitly
+No dynamic table generation from code
+
+The database is the single source of truth
+
+### Core Tables Required
+
+Users table
+Stores user profile information, preferences, and metadata
+
+Locations table
+Stores physical locations displayed on the map
+Includes coordinates, map provider compatibility data, and marker settings
+
+MapMarkers table
+Controls marker type, appearance, status, and interaction behavior
+
+UserInteractions table
+Tracks clicks, views, likes, shares, visits, and other actions
+
+Recommendations table
+Stores recommended user pairs and confidence scores
+
+AITrainingSignals table
+Stores anonymized signals used to improve recommendations over time
+
+MapProviderStatus table
+Tracks Google and Mapbox usage, availability, and fallback logic
+
+Sessions table
+Tracks active user sessions and location context
+
+All relationships between tables must be clearly defined and indexed for performance
+
+## 4. Sample Data Strategy
+
+Instead of adding mock data inside the code
+
+We will
+Insert realistic sample users into the Users table
+Insert real world like locations into the Locations table
+Insert markers linked to locations
+Insert interaction history to simulate real usage
+
+This allows
+Testing AI learning
+Testing recommendation logic
+Testing map rendering with real database driven data
+
+## 5. Recommendation System Logic
+
+The recommendation system must not be static
+
+It must
+Recommend users to other users
+Improve recommendations as more users join
+Learn from interactions over time
+
+### Recommendation Inputs
+
+Location proximity
+Shared interests
+Interaction frequency
+Time spent viewing similar markers
+User engagement patterns
+
+### Learning Behavior
+
+As more users join
+The system continuously updates similarity scores
+Older recommendations decay over time
+New behavior has higher weight
+
+AI uses stored signals from the database to refine future recommendations
+
+## 6. Map and Marker Behavior
+
+Markers must exist on both standard maps and 3D maps
+
+Marker requirements
+Clickable
+Dynamic based on zoom level
+Cluster when dense
+Expandable in 3D view
+
+Marker data must always come from the database
+
+Marker interactions must be tracked and stored
+
+## 7. UI and Interaction Design Flow
+
+The UI is designed around how the user interacts with the map and recommendations
+
+### Entry Flow
+
+User opens the app
+Map loads with nearest relevant markers
+Provider selection happens silently in the background
+
+### Exploration Flow
+
+User pans or zooms the map
+Markers update dynamically
+3D view activates where supported
+
+### Interaction Flow
+
+User clicks a marker
+Detailed view opens
+Related users and locations are suggested
+
+### Recommendation Flow
+
+User sees recommended users
+Can connect, follow, or ignore
+Actions feed back into the AI learning loop
+
+### Fallback Flow
+
+If Google 3D map is unavailable
+System switches to Mapbox
+UI remains consistent
+No broken experience
+
+## 8. Design Consistency Rules
+
+Consistent spacing, colors, and typography across all screens
+
+Same interaction patterns for markers and cards
+
+Same behavior for recommendations across map and profile views
+
+No visual or behavioral differences when switching map providers
+
+## 9. System Workflow Summary
+
+Database stores everything
+Maps read directly from the database
+Markers are rendered from stored data
+User interactions are logged
+AI reads interaction signals
+Recommendations improve continuously
+UI reflects updated data in real time
+
+This ensures scalability, reliability, and long term learning without rebuilding logic later
+
+## 10. Final Notes
+
+No sample code for data
+No hardcoded mock objects
+Everything must be database driven
+
+The system must be ready for growth from day one
+
+Maps, AI, database, and UI must work as one connected system
