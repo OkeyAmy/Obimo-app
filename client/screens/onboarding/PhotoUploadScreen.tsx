@@ -1,5 +1,5 @@
 import React, { useState, useRef } from "react";
-import { View, StyleSheet, Pressable, Modal, Image, ScrollView, Dimensions, ActivityIndicator } from "react-native";
+import { View, StyleSheet, Pressable, Modal, Image, ScrollView, Dimensions, ActivityIndicator, Platform } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -78,7 +78,7 @@ export default function PhotoUploadScreen() {
   };
 
   const handleContinue = async () => {
-    if (photos.length === 0) return;
+    if (photos.length === 0 && Platform.OS !== "web") return;
     
     setIsLoading(true);
     try {
@@ -87,7 +87,7 @@ export default function PhotoUploadScreen() {
         firstName,
         dateOfBirth,
         gender,
-        photos,
+        photos: photos.length > 0 ? photos : undefined,
         onboardingCompleted: true,
       });
       
@@ -104,6 +104,13 @@ export default function PhotoUploadScreen() {
     } finally {
       setIsLoading(false);
     }
+  };
+  
+  const handleSkip = () => {
+    navigation.reset({
+      index: 0,
+      routes: [{ name: "Main" }],
+    });
   };
 
   const hasPhotos = photos.length > 0;
@@ -161,6 +168,15 @@ export default function PhotoUploadScreen() {
       </View>
 
       <View style={styles.footer}>
+        {Platform.OS === "web" ? (
+          <Pressable
+            style={styles.skipButton}
+            onPress={handleSkip}
+            testID="button-skip-photos"
+          >
+            <ThemedText style={styles.skipButtonText}>Skip for now</ThemedText>
+          </Pressable>
+        ) : null}
         <Pressable
           style={[styles.continueButton, (!hasPhotos || isLoading) && styles.buttonDisabled]}
           onPress={handleContinue}
@@ -289,6 +305,20 @@ const styles = StyleSheet.create({
   },
   footer: {
     paddingBottom: Spacing["2xl"],
+    gap: Spacing.md,
+  },
+  skipButton: {
+    height: 48,
+    borderRadius: BorderRadius.full,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: ObimoColors.textSecondary,
+  },
+  skipButtonText: {
+    ...Typography.body,
+    fontWeight: "500",
+    color: ObimoColors.textSecondary,
   },
   continueButton: {
     height: 56,

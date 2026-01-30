@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { View, StyleSheet, Pressable, ActivityIndicator } from "react-native";
+import { View, StyleSheet, Pressable, ActivityIndicator, Platform } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -26,14 +26,20 @@ export default function LocationPermissionScreen() {
   const handleContinue = async () => {
     setIsLoading(true);
     
-    try {
+    const timeoutMs = Platform.OS === "web" ? 3000 : 10000;
+    
+    const doLocationFlow = async () => {
       let locationGranted = permission?.granted ?? false;
       let latitude: number | undefined;
       let longitude: number | undefined;
 
-      if (!locationGranted) {
-        const result = await requestPermission();
-        locationGranted = result.granted;
+      if (!locationGranted && Platform.OS !== "web") {
+        try {
+          const result = await requestPermission();
+          locationGranted = result.granted;
+        } catch (permError) {
+          console.warn("Permission request failed:", permError);
+        }
       }
 
       if (locationGranted) {
@@ -51,17 +57,32 @@ export default function LocationPermissionScreen() {
 
       if (userEmail) {
         const apiUrl = getApiUrl();
-        await fetch(new URL("/api/profile/update-location", apiUrl).toString(), {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            email: userEmail,
-            latitude,
-            longitude,
-            locationPermission: locationGranted,
-          }),
-        });
+        try {
+          await fetch(new URL("/api/profile/update-location", apiUrl).toString(), {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              email: userEmail,
+              latitude,
+              longitude,
+              locationPermission: locationGranted,
+            }),
+          });
+        } catch (fetchError) {
+          console.warn("Could not update location on server:", fetchError);
+        }
       }
+    };
+    
+    try {
+      const timeoutPromise = new Promise<void>((resolve) => 
+        setTimeout(() => {
+          console.log("Location flow timed out, proceeding anyway");
+          resolve();
+        }, timeoutMs)
+      );
+      
+      await Promise.race([doLocationFlow(), timeoutPromise]);
     } catch (error) {
       console.error("Error handling location permission:", error);
     } finally {

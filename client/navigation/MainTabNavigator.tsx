@@ -4,19 +4,17 @@ import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { BlurView } from "expo-blur";
 import { Platform, StyleSheet, View } from "react-native";
 
-import ChatsScreen from "@/screens/ChatsScreen";
-import NearbyScreen from "@/screens/NearbyScreen";
-import LikesScreen from "@/screens/LikesScreen";
-import EncountersScreen from "@/screens/EncountersScreen";
+import DiscoverScreen from "@/screens/DiscoverScreen";
+import MapScreen from "@/screens/MapScreen";
+import ConnectsScreen from "@/screens/ConnectsScreen";
 import ProfileScreen from "@/screens/ProfileScreen";
 import { useTheme } from "@/hooks/useTheme";
 import { ObimoColors } from "@/constants/theme";
 
 export type MainTabParamList = {
-  ChatsTab: undefined;
-  NearbyTab: undefined;
-  LikesTab: undefined;
-  EncountersTab: undefined;
+  DiscoverTab: undefined;
+  MapTab: undefined;
+  ConnectsTab: undefined;
   ProfileTab: undefined;
 };
 
@@ -27,7 +25,7 @@ export default function MainTabNavigator() {
 
   return (
     <Tab.Navigator
-      initialRouteName="EncountersTab"
+      initialRouteName="DiscoverTab"
       screenOptions={{
         tabBarActiveTintColor: ObimoColors.textPrimary,
         tabBarInactiveTintColor: ObimoColors.textSecondary,
@@ -58,34 +56,13 @@ export default function MainTabNavigator() {
       }}
     >
       <Tab.Screen
-        name="ChatsTab"
-        component={ChatsScreen}
+        name="DiscoverTab"
+        component={DiscoverScreen}
         options={{
-          title: "Chats",
-          tabBarIcon: ({ color, size, focused }) => (
-            <View>
-              <MaterialCommunityIcons 
-                name={focused ? "chat" : "chat-outline"} 
-                size={size} 
-                color={color} 
-              />
-              {focused ? null : (
-                <View style={styles.badge}>
-                  <View style={styles.badgeDot} />
-                </View>
-              )}
-            </View>
-          ),
-        }}
-      />
-      <Tab.Screen
-        name="NearbyTab"
-        component={NearbyScreen}
-        options={{
-          title: "Nearby",
+          title: "Discover",
           tabBarIcon: ({ color, size, focused }) => (
             <MaterialCommunityIcons 
-              name={focused ? "map-marker" : "map-marker-outline"} 
+              name={focused ? "compass" : "compass-outline"} 
               size={size} 
               color={color} 
             />
@@ -93,37 +70,32 @@ export default function MainTabNavigator() {
         }}
       />
       <Tab.Screen
-        name="LikesTab"
-        component={LikesScreen}
+        name="MapTab"
+        component={MapScreen}
         options={{
-          title: "Likes",
+          title: "Map",
           tabBarIcon: ({ color, size, focused }) => (
-            <View>
-              <MaterialCommunityIcons 
-                name={focused ? "heart" : "heart-outline"} 
-                size={size} 
-                color={color} 
-              />
-              {focused ? null : (
-                <View style={styles.badge}>
-                  <View style={styles.badgeDot} />
-                </View>
-              )}
-            </View>
+            <MaterialCommunityIcons 
+              name={focused ? "map" : "map-outline"} 
+              size={size} 
+              color={color} 
+            />
           ),
         }}
       />
       <Tab.Screen
-        name="EncountersTab"
-        component={EncountersScreen}
+        name="ConnectsTab"
+        component={ConnectsScreen}
         options={{
-          title: "Encounters",
+          title: "Connects",
           tabBarIcon: ({ color, size, focused }) => (
-            <MaterialCommunityIcons 
-              name={focused ? "cards" : "cards-outline"} 
-              size={size} 
-              color={color} 
-            />
+            <View>
+              <MaterialCommunityIcons 
+                name={focused ? "account-group" : "account-group-outline"} 
+                size={size} 
+                color={color} 
+              />
+            </View>
           ),
         }}
       />
