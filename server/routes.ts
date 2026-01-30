@@ -808,6 +808,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // ============= DISCOVER / USER ROUTES =============
 
+  // Get user by email
+  app.get("/api/users/email/:email", async (req: Request, res: Response) => {
+    try {
+      const email = req.params.email as string;
+      const user = await storage.getUserByEmail(email);
+      if (!user) {
+        return res.status(404).json({ error: "User not found" });
+      }
+      res.json(user);
+    } catch (error: any) {
+      res.status(500).json({ error: "Failed to fetch user", details: error.message });
+    }
+  });
+
   // Get users for discover feed
   app.get("/api/discover", async (req: Request, res: Response) => {
     try {

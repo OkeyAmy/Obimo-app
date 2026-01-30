@@ -1,8 +1,8 @@
 import React, { useState, useCallback } from "react";
-import { View, StyleSheet, Dimensions, Pressable, Image, ActivityIndicator } from "react-native";
+import { View, StyleSheet, Dimensions, Pressable, Image, ActivityIndicator, Modal } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
-import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import Animated, {
   useAnimatedStyle,
@@ -27,15 +27,13 @@ const SWIPE_THRESHOLD = SCREEN_WIDTH * 0.25;
 interface UserProfile {
   id: string;
   email: string;
-  displayName: string | null;
-  avatarUrl: string | null;
-  bio: string | null;
-  currentLocation: string | null;
-  currentLatitude: string | null;
-  currentLongitude: string | null;
-  travelStyle: string | null;
-  interests: string[] | null;
-  isOnline: boolean | null;
+  firstName: string | null;
+  photos: string[] | null;
+  latitude: string | null;
+  longitude: string | null;
+  gender: string | null;
+  dateOfBirth: string | null;
+  onboardingCompleted: boolean | null;
   createdAt: string;
 }
 
@@ -105,12 +103,33 @@ function ProfileCard({ user, isFirst, onSwipe }: ProfileCardProps) {
   }));
 
   const defaultPhoto = "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&h=600&fit=crop";
-  const isNew = new Date(user.createdAt).getTime() > Date.now() - 7 * 24 * 60 * 60 * 1000;
+  const userPhoto = user.photos && user.photos.length > 0 ? user.photos[0] : defaultPhoto;
+  
+  const calculateAge = (dateOfBirth: string | null) => {
+    if (!dateOfBirth) return null;
+    const today = new Date();
+    const birthDate = new Date(dateOfBirth);
+    let age = today.getFullYear() - birthDate.getFullYear();
+    const monthDiff = today.getMonth() - birthDate.getMonth();
+    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+      age--;
+    }
+    return age;
+  };
+
+  const age = calculateAge(user.dateOfBirth);
+  const displayName = user.firstName || "Nomad";
+  const nameWithAge = age ? `${displayName}, ${age}` : displayName;
+
+  const getLocationName = () => {
+    if (!user.latitude || !user.longitude) return null;
+    return "Nearby";
+  };
 
   return (
     <GestureDetector gesture={panGesture}>
       <Animated.View style={[styles.card, animatedStyle]}>
-        <Image source={{ uri: user.avatarUrl || defaultPhoto }} style={styles.cardImage} />
+        <Image source={{ uri: userPhoto }} style={styles.cardImage} />
         
         <Animated.View style={[styles.likeStamp, likeOpacity]}>
           <ThemedText style={styles.stampText}>CONNECT</ThemedText>
@@ -126,47 +145,23 @@ function ProfileCard({ user, isFirst, onSwipe }: ProfileCardProps) {
         >
           <View style={styles.userInfo}>
             <View style={styles.nameRow}>
-              {isNew ? (
-                <View style={styles.verifiedBadge}>
-                  <MaterialCommunityIcons name="check-decagram" size={18} color="#8B5CF6" />
-                </View>
-              ) : null}
-              <ThemedText style={styles.userName}>{user.displayName || "Nomad"}</ThemedText>
-              {user.isOnline ? <View style={styles.onlineDot} /> : null}
+              <ThemedText style={styles.userName}>{nameWithAge}</ThemedText>
+              <View style={styles.onlineDot} />
             </View>
             
-            {isNew ? (
-              <View style={styles.tagRow}>
-                <View style={styles.tag}>
-                  <MaterialCommunityIcons name="star" size={12} color={ObimoColors.textPrimary} />
-                  <ThemedText style={styles.tagText}>Just joined</ThemedText>
-                </View>
+            <View style={styles.tagRow}>
+              <View style={styles.tag}>
+                <Feather name="message-circle" size={12} color="#FFFFFF" />
+                <ThemedText style={styles.tagText}>Here to connect</ThemedText>
               </View>
-            ) : null}
+            </View>
             
-            {user.travelStyle ? (
-              <View style={styles.tagRow}>
-                <View style={[styles.tag, styles.travelStyleTag]}>
-                  <MaterialCommunityIcons name="van-utility" size={12} color="#FFFFFF" />
-                  <ThemedText style={styles.travelStyleText}>{user.travelStyle}</ThemedText>
-                </View>
-              </View>
-            ) : null}
-            
-            {user.currentLocation ? (
+            {getLocationName() ? (
               <View style={styles.locationRow}>
-                <MaterialCommunityIcons name="map-marker" size={14} color="#FFFFFF" />
-                <ThemedText style={styles.locationText}>{user.currentLocation}</ThemedText>
+                <Feather name="map-pin" size={14} color="#FFFFFF" />
+                <ThemedText style={styles.locationText}>{getLocationName()}</ThemedText>
               </View>
             ) : null}
-
-            {user.bio ? (
-              <ThemedText style={styles.bioText} numberOfLines={2}>{user.bio}</ThemedText>
-            ) : null}
-          </View>
-
-          <View style={styles.moreButton}>
-            <MaterialCommunityIcons name="dots-horizontal" size={24} color="#FFFFFF" />
           </View>
         </LinearGradient>
       </Animated.View>
@@ -178,8 +173,9 @@ export default function DiscoverScreen() {
   const insets = useSafeAreaInsets();
   const tabBarHeight = useBottomTabBarHeight();
   const queryClient = useQueryClient();
-  const [showTooltip, setShowTooltip] = useState(true);
   const [swipedUserIds, setSwipedUserIds] = useState<string[]>([]);
+  const [showFilterModal, setShowFilterModal] = useState(false);
+  const [showLikesModal, setShowLikesModal] = useState(false);
   
   const currentUserId = "user-1";
 
@@ -206,7 +202,6 @@ export default function DiscoverScreen() {
 
   const handleSwipe = useCallback((direction: "left" | "right", userId: string) => {
     setSwipedUserIds(prev => [...prev, userId]);
-    setShowTooltip(false);
 
     if (direction === "right") {
       connectionMutation.mutate({
@@ -234,27 +229,6 @@ export default function DiscoverScreen() {
     handleSwipe("right", visibleUsers[0].id);
   };
 
-  const handleSuperLike = () => {
-    if (visibleUsers.length === 0) return;
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-    const userId = visibleUsers[0].id;
-    setSwipedUserIds(prev => [...prev, userId]);
-    setShowTooltip(false);
-
-    connectionMutation.mutate({
-      userId: currentUserId,
-      connectedUserId: userId,
-      connectionType: "super",
-    });
-
-    interactionMutation.mutate({
-      userId: currentUserId,
-      targetUserId: userId,
-      interactionType: "super_like",
-      context: "discover",
-    });
-  };
-
   const cardHeight = SCREEN_HEIGHT - insets.top - tabBarHeight - 180;
 
   if (isLoading) {
@@ -269,13 +243,21 @@ export default function DiscoverScreen() {
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <View style={styles.header}>
-        <ThemedText style={styles.headerTitle}>Discover</ThemedText>
+        <ThemedText style={styles.headerTitle}>Encounters</ThemedText>
         <View style={styles.headerActions}>
-          <Pressable style={styles.headerButton}>
-            <MaterialCommunityIcons name="filter-variant" size={24} color={ObimoColors.textPrimary} />
+          <Pressable 
+            style={styles.headerButton}
+            onPress={() => setShowLikesModal(true)}
+            testID="button-likes"
+          >
+            <Feather name="heart" size={22} color={ObimoColors.textPrimary} />
           </Pressable>
-          <Pressable style={styles.headerButton}>
-            <MaterialCommunityIcons name="tune-variant" size={24} color={ObimoColors.textPrimary} />
+          <Pressable 
+            style={styles.headerButton}
+            onPress={() => setShowFilterModal(true)}
+            testID="button-filter"
+          >
+            <Feather name="sliders" size={22} color={ObimoColors.textPrimary} />
           </Pressable>
         </View>
       </View>
@@ -303,14 +285,6 @@ export default function DiscoverScreen() {
             </Pressable>
           </View>
         )}
-
-        {showTooltip && visibleUsers.length > 0 ? (
-          <View style={styles.tooltipContainer}>
-            <View style={styles.tooltip}>
-              <ThemedText style={styles.tooltipText}>Swipe right to connect</ThemedText>
-            </View>
-          </View>
-        ) : null}
       </View>
 
       <View style={[styles.actionButtons, { marginBottom: tabBarHeight + Spacing.xl }]}>
@@ -319,15 +293,7 @@ export default function DiscoverScreen() {
           onPress={handleDislike}
           testID="button-pass"
         >
-          <MaterialCommunityIcons name="close" size={28} color="#EF4444" />
-        </Pressable>
-
-        <Pressable
-          style={[styles.actionButton, styles.superLikeButton]}
-          onPress={handleSuperLike}
-          testID="button-superlike"
-        >
-          <MaterialCommunityIcons name="star" size={24} color="#3B82F6" />
+          <Feather name="x" size={28} color="#EF4444" />
         </Pressable>
 
         <Pressable
@@ -335,9 +301,89 @@ export default function DiscoverScreen() {
           onPress={handleLike}
           testID="button-connect"
         >
-          <MaterialCommunityIcons name="heart" size={28} color="#22C55E" />
+          <Feather name="heart" size={28} color="#22C55E" />
         </Pressable>
       </View>
+
+      <Modal
+        visible={showFilterModal}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setShowFilterModal(false)}
+      >
+        <View style={styles.modalContainer}>
+          <View style={styles.modalHeader}>
+            <ThemedText style={styles.modalTitle}>Filters</ThemedText>
+            <Pressable onPress={() => setShowFilterModal(false)}>
+              <Feather name="x" size={24} color={ObimoColors.textPrimary} />
+            </Pressable>
+          </View>
+          
+          <View style={styles.modalContent}>
+            <View style={styles.filterSection}>
+              <ThemedText style={styles.filterLabel}>Distance</ThemedText>
+              <View style={styles.filterOptions}>
+                {["10 mi", "25 mi", "50 mi", "100 mi"].map((option) => (
+                  <Pressable key={option} style={styles.filterOption}>
+                    <ThemedText style={styles.filterOptionText}>{option}</ThemedText>
+                  </Pressable>
+                ))}
+              </View>
+            </View>
+            
+            <View style={styles.filterSection}>
+              <ThemedText style={styles.filterLabel}>Looking for</ThemedText>
+              <View style={styles.filterOptions}>
+                {["Everyone", "Men", "Women", "Non-binary"].map((option) => (
+                  <Pressable key={option} style={styles.filterOption}>
+                    <ThemedText style={styles.filterOptionText}>{option}</ThemedText>
+                  </Pressable>
+                ))}
+              </View>
+            </View>
+
+            <View style={styles.filterSection}>
+              <ThemedText style={styles.filterLabel}>Age Range</ThemedText>
+              <View style={styles.filterOptions}>
+                {["18-25", "25-35", "35-45", "45+"].map((option) => (
+                  <Pressable key={option} style={styles.filterOption}>
+                    <ThemedText style={styles.filterOptionText}>{option}</ThemedText>
+                  </Pressable>
+                ))}
+              </View>
+            </View>
+          </View>
+
+          <Pressable 
+            style={styles.applyButton}
+            onPress={() => setShowFilterModal(false)}
+          >
+            <ThemedText style={styles.applyButtonText}>Apply Filters</ThemedText>
+          </Pressable>
+        </View>
+      </Modal>
+
+      <Modal
+        visible={showLikesModal}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setShowLikesModal(false)}
+      >
+        <View style={styles.modalContainer}>
+          <View style={styles.modalHeader}>
+            <ThemedText style={styles.modalTitle}>Who Liked You</ThemedText>
+            <Pressable onPress={() => setShowLikesModal(false)}>
+              <Feather name="x" size={24} color={ObimoColors.textPrimary} />
+            </Pressable>
+          </View>
+          
+          <View style={styles.emptyLikes}>
+            <Feather name="heart" size={48} color={ObimoColors.textSecondary} />
+            <ThemedText style={styles.emptyLikesText}>No likes yet</ThemedText>
+            <ThemedText style={styles.emptyLikesSubtext}>Keep swiping to get more matches</ThemedText>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -414,9 +460,6 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
   },
-  verifiedBadge: {
-    marginRight: Spacing.xs,
-  },
   userName: {
     ...Typography.h2,
     color: "#FFFFFF",
@@ -438,21 +481,13 @@ const styles = StyleSheet.create({
   tag: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "rgba(255, 255, 255, 0.9)",
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.xs,
     borderRadius: BorderRadius.full,
     gap: Spacing.xs,
   },
-  travelStyleTag: {
-    backgroundColor: "rgba(139, 92, 246, 0.8)",
-  },
   tagText: {
-    ...Typography.small,
-    color: ObimoColors.textPrimary,
-    fontWeight: "500",
-  },
-  travelStyleText: {
     ...Typography.small,
     color: "#FFFFFF",
     fontWeight: "500",
@@ -466,16 +501,6 @@ const styles = StyleSheet.create({
   locationText: {
     ...Typography.body,
     color: "#FFFFFF",
-  },
-  bioText: {
-    ...Typography.body,
-    color: "rgba(255, 255, 255, 0.8)",
-    marginTop: Spacing.sm,
-  },
-  moreButton: {
-    position: "absolute",
-    top: Spacing.lg,
-    right: Spacing.lg,
   },
   likeStamp: {
     position: "absolute",
@@ -513,13 +538,13 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "center",
     alignItems: "center",
-    gap: Spacing.xl,
+    gap: Spacing["3xl"],
     paddingVertical: Spacing.lg,
   },
   actionButton: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+    width: 64,
+    height: 64,
+    borderRadius: 32,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "#FFFFFF",
@@ -533,32 +558,9 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: "#FEE2E2",
   },
-  superLikeButton: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    borderWidth: 2,
-    borderColor: "#DBEAFE",
-  },
   likeButton: {
     borderWidth: 2,
     borderColor: "#DCFCE7",
-  },
-  tooltipContainer: {
-    position: "absolute",
-    bottom: -20,
-    alignItems: "center",
-  },
-  tooltip: {
-    backgroundColor: "#1F2937",
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.sm,
-    borderRadius: BorderRadius.lg,
-  },
-  tooltipText: {
-    ...Typography.small,
-    color: "#FFFFFF",
-    fontWeight: "500",
   },
   emptyState: {
     alignItems: "center",
@@ -587,5 +589,79 @@ const styles = StyleSheet.create({
     ...Typography.body,
     color: "#FFFFFF",
     fontWeight: "600",
+  },
+  modalContainer: {
+    flex: 1,
+    backgroundColor: "#FFFFFF",
+    paddingTop: Spacing.xl,
+  },
+  modalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: Spacing.xl,
+    paddingBottom: Spacing.lg,
+    borderBottomWidth: 1,
+    borderBottomColor: ObimoColors.background,
+  },
+  modalTitle: {
+    ...Typography.h3,
+    color: ObimoColors.textPrimary,
+  },
+  modalContent: {
+    flex: 1,
+    padding: Spacing.xl,
+  },
+  filterSection: {
+    marginBottom: Spacing["2xl"],
+  },
+  filterLabel: {
+    ...Typography.h4,
+    color: ObimoColors.textPrimary,
+    marginBottom: Spacing.md,
+  },
+  filterOptions: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: Spacing.sm,
+  },
+  filterOption: {
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.full,
+    backgroundColor: ObimoColors.background,
+  },
+  filterOptionText: {
+    ...Typography.body,
+    color: ObimoColors.textPrimary,
+  },
+  applyButton: {
+    margin: Spacing.xl,
+    backgroundColor: ObimoColors.textPrimary,
+    paddingVertical: Spacing.lg,
+    borderRadius: BorderRadius.lg,
+    alignItems: "center",
+  },
+  applyButtonText: {
+    ...Typography.body,
+    color: "#FFFFFF",
+    fontWeight: "600",
+  },
+  emptyLikes: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: Spacing.xl,
+  },
+  emptyLikesText: {
+    ...Typography.h3,
+    color: ObimoColors.textPrimary,
+    marginTop: Spacing.lg,
+  },
+  emptyLikesSubtext: {
+    ...Typography.body,
+    color: ObimoColors.textSecondary,
+    marginTop: Spacing.sm,
+    textAlign: "center",
   },
 });
