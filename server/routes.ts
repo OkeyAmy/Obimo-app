@@ -3,6 +3,7 @@ import { createServer, type Server } from "node:http";
 import sgMail from "@sendgrid/mail";
 import { storage } from "./storage";
 import { updateProfileSchema } from "@shared/schema";
+import { recommendationEngine } from "./recommendation-engine";
 
 // Initialize SendGrid
 if (process.env.SENDGRID_API_KEY) {
@@ -913,6 +914,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Generate fresh AI-powered recommendations for user
+  app.post("/api/recommendations/:userId/generate", async (req: Request, res: Response) => {
+    try {
+      const userId = req.params.userId as string;
+      const recs = await recommendationEngine.generateRecommendationsForUser(userId);
+      res.json({ 
+        success: true, 
+        count: recs.length,
+        recommendations: recs 
+      });
+    } catch (error: any) {
+      console.error("Failed to generate recommendations:", error);
+      res.status(500).json({ error: "Failed to generate recommendations", details: error.message });
+    }
+  });
+
+  // Get AI-generated explanation for a recommendation
+  app.get("/api/recommendations/:userId/explain/:targetUserId", async (req: Request, res: Response) => {
+    try {
+      const { userId, targetUserId } = req.params;
+      const explanation = await recommendationEngine.getAIRecommendationExplanation(
+        userId as string, 
+        targetUserId as string
+      );
+      res.json({ explanation });
+    } catch (error: any) {
+      res.status(500).json({ error: "Failed to get explanation", details: error.message });
+    }
+  });
+
   // Update recommendation (after user action)
   app.patch("/api/recommendations/:id", async (req: Request, res: Response) => {
     try {
@@ -941,6 +972,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       const interaction = await storage.logInteraction(interactionData);
+      
+      // Process interaction for AI learning
+      if (interactionData.targetUserId) {
+        recommendationEngine.processUserInteraction(
+          interactionData.userId,
+          interactionData.interactionType,
+          interactionData.targetUserId
+        ).catch(err => console.error("Failed to process interaction for AI:", err));
+      }
+      
       res.json(interaction);
     } catch (error: any) {
       res.status(500).json({ error: "Failed to log interaction", details: error.message });

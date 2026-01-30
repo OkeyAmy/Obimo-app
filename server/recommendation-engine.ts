@@ -1,14 +1,17 @@
 import { db } from "./db";
 import { 
   users, 
-  locations, 
   userInteractions, 
   recommendations,
   connections,
   aiTrainingSignals
 } from "@shared/schema";
-import { eq, and, desc, sql, ne, notInArray, gte } from "drizzle-orm";
-import type { User, Location, Recommendation } from "@shared/schema";
+import { eq, and, desc, sql, ne } from "drizzle-orm";
+import type { User, Recommendation } from "@shared/schema";
+import { GoogleGenAI } from "@google/genai";
+
+// Initialize Gemini AI
+const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || "" });
 
 interface RecommendationScore {
   userId: string;
@@ -53,7 +56,11 @@ export class RecommendationEngine {
     scores.push(...proximityScores, ...interactionScores, ...reunionScores);
 
     const aggregatedScores = this.aggregateScores(scores);
-    const sortedScores = aggregatedScores.sort((a, b) => b.score - a.score).slice(0, 20);
+    
+    // Use AI to enhance and re-rank recommendations
+    const aiEnhancedScores = await this.enhanceWithAI(userId, user, aggregatedScores);
+    
+    const sortedScores = aiEnhancedScores.sort((a, b) => b.score - a.score).slice(0, 20);
 
     const savedRecommendations: Recommendation[] = [];
     for (const score of sortedScores) {
@@ -65,7 +72,8 @@ export class RecommendationEngine {
       }
     }
 
-    await this.logTrainingSignal(userId, 'recommendations_generated', {
+    await this.logTrainingSignal('recommendations_generated', {
+      userId,
       count: savedRecommendations.length,
       topScore: sortedScores[0]?.score || 0
     });
@@ -79,9 +87,14 @@ export class RecommendationEngine {
   }
 
   private async calculateProximityScores(userId: string, user: User): Promise<RecommendationScore[]> {
-    if (!user.currentLatitude || !user.currentLongitude) return [];
+    if (!user.latitude || !user.longitude) return [];
 
-    const nearbyRadius = 100;
+    const userLat = parseFloat(user.latitude);
+    const userLon = parseFloat(user.longitude);
+    
+    if (isNaN(userLat) || isNaN(userLon)) return [];
+
+    const nearbyRadius = 100; // km
     const nearbyUsers = await db.select()
       .from(users)
       .where(and(
@@ -93,12 +106,14 @@ export class RecommendationEngine {
     const scores: RecommendationScore[] = [];
 
     for (const nearbyUser of nearbyUsers) {
-      if (!nearbyUser.currentLatitude || !nearbyUser.currentLongitude) continue;
+      if (!nearbyUser.latitude || !nearbyUser.longitude) continue;
 
-      const distance = this.calculateDistance(
-        user.currentLatitude, user.currentLongitude,
-        nearbyUser.currentLatitude, nearbyUser.currentLongitude
-      );
+      const nearbyLat = parseFloat(nearbyUser.latitude);
+      const nearbyLon = parseFloat(nearbyUser.longitude);
+      
+      if (isNaN(nearbyLat) || isNaN(nearbyLon)) continue;
+
+      const distance = this.calculateDistance(userLat, userLon, nearbyLat, nearbyLon);
 
       if (distance <= nearbyRadius) {
         const proximityScore = Math.max(0, 100 - distance);
@@ -127,30 +142,12 @@ export class RecommendationEngine {
     if (likedUsers.length === 0) return [];
 
     const likedTargetIds = likedUsers
-      .filter(i => i.targetId)
-      .map(i => i.targetId as string);
+      .filter(i => i.targetUserId)
+      .map(i => i.targetUserId as string);
 
     if (likedTargetIds.length === 0) return [];
 
-    const likedProfiles = await db.select()
-      .from(users)
-      .where(sql`${users.id} = ANY(${likedTargetIds})`);
-
-    const interestCounts = new Map<string, number>();
-    for (const profile of likedProfiles) {
-      const interests = profile.interests as string[] || [];
-      for (const interest of interests) {
-        interestCounts.set(interest, (interestCounts.get(interest) || 0) + 1);
-      }
-    }
-
-    const topInterests = Array.from(interestCounts.entries())
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 5)
-      .map(([interest]) => interest);
-
-    if (topInterests.length === 0) return [];
-
+    // Get users similar to those liked
     const similarUsers = await db.select()
       .from(users)
       .where(and(
@@ -164,16 +161,18 @@ export class RecommendationEngine {
     for (const potentialMatch of similarUsers) {
       if (likedTargetIds.includes(potentialMatch.id)) continue;
 
-      const potentialInterests = potentialMatch.interests as string[] || [];
-      const matchingInterests = potentialInterests.filter(i => topInterests.includes(i));
+      // Basic similarity scoring based on profile completeness
+      let similarityScore = 0;
+      if (potentialMatch.firstName) similarityScore += 5;
+      if (potentialMatch.photos && (potentialMatch.photos as string[]).length > 0) similarityScore += 10;
+      if (potentialMatch.latitude && potentialMatch.longitude) similarityScore += 5;
 
-      if (matchingInterests.length > 0) {
-        const interestScore = matchingInterests.length * 15;
+      if (similarityScore > 0) {
         scores.push({
           userId,
           targetUserId: potentialMatch.id,
-          score: interestScore,
-          reasons: [`Shared interests: ${matchingInterests.join(', ')}`],
+          score: similarityScore,
+          reasons: ['Based on your preferences'],
           type: 'user'
         });
       }
@@ -194,10 +193,15 @@ export class RecommendationEngine {
     if (pastConnections.length === 0) return [];
 
     const user = await this.getUser(userId);
-    if (!user?.currentLatitude || !user?.currentLongitude) return [];
+    if (!user?.latitude || !user?.longitude) return [];
+
+    const userLat = parseFloat(user.latitude);
+    const userLon = parseFloat(user.longitude);
+    
+    if (isNaN(userLat) || isNaN(userLon)) return [];
 
     const scores: RecommendationScore[] = [];
-    const nearbyRadius = 50;
+    const nearbyRadius = 50; // km
 
     for (const connection of pastConnections) {
       const pastPartnerId = connection.userId === userId 
@@ -208,12 +212,14 @@ export class RecommendationEngine {
         .from(users)
         .where(eq(users.id, pastPartnerId));
 
-      if (!pastPartner?.currentLatitude || !pastPartner?.currentLongitude) continue;
+      if (!pastPartner?.latitude || !pastPartner?.longitude) continue;
 
-      const distance = this.calculateDistance(
-        user.currentLatitude, user.currentLongitude,
-        pastPartner.currentLatitude, pastPartner.currentLongitude
-      );
+      const partnerLat = parseFloat(pastPartner.latitude);
+      const partnerLon = parseFloat(pastPartner.longitude);
+      
+      if (isNaN(partnerLat) || isNaN(partnerLon)) continue;
+
+      const distance = this.calculateDistance(userLat, userLon, partnerLat, partnerLon);
 
       if (distance <= nearbyRadius) {
         const reunionScore = 80 + Math.max(0, 20 - distance);
@@ -228,6 +234,120 @@ export class RecommendationEngine {
     }
 
     return scores;
+  }
+
+  private async enhanceWithAI(userId: string, user: User, scores: RecommendationScore[]): Promise<RecommendationScore[]> {
+    if (scores.length === 0 || !process.env.GEMINI_API_KEY) return scores;
+
+    try {
+      // Get interaction history for context
+      const recentInteractions = await db.select()
+        .from(userInteractions)
+        .where(eq(userInteractions.userId, userId))
+        .orderBy(desc(userInteractions.createdAt))
+        .limit(20);
+
+      const likeCount = recentInteractions.filter(i => i.interactionType === 'like').length;
+      const passCount = recentInteractions.filter(i => i.interactionType === 'pass').length;
+      const superLikeCount = recentInteractions.filter(i => i.interactionType === 'super_like').length;
+
+      // Build context for AI
+      const prompt = `You are a recommendation engine for a van-life nomad connection app called Obimo.
+Based on the user's interaction patterns, help optimize recommendation scores.
+
+User Profile:
+- Name: ${user.firstName || 'Anonymous'}
+- Has location: ${user.latitude && user.longitude ? 'Yes' : 'No'}
+
+Recent Behavior:
+- Likes: ${likeCount}
+- Super Likes: ${superLikeCount}
+- Passes: ${passCount}
+
+Current recommendation candidates (${scores.length} users):
+${scores.slice(0, 10).map((s, i) => `${i + 1}. Score: ${s.score}, Type: ${s.type}, Reasons: ${s.reasons.join(', ')}`).join('\n')}
+
+Based on this data, provide a JSON response with score adjustments.
+Format: {"adjustments": [{"index": 0, "multiplier": 1.2, "additionalReason": "High engagement pattern"}]}
+Only adjust scores that warrant it. Multiplier should be between 0.5 and 2.0.
+Respond ONLY with valid JSON, no explanation.`;
+
+      const response = await ai.models.generateContent({
+        model: "gemini-2.5-flash",
+        contents: prompt,
+      });
+
+      const responseText = response.text || '';
+      
+      // Try to parse AI response
+      try {
+        const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          const aiSuggestions = JSON.parse(jsonMatch[0]);
+          
+          if (aiSuggestions.adjustments && Array.isArray(aiSuggestions.adjustments)) {
+            for (const adj of aiSuggestions.adjustments) {
+              if (adj.index >= 0 && adj.index < scores.length && adj.multiplier) {
+                const multiplier = Math.max(0.5, Math.min(2.0, adj.multiplier));
+                scores[adj.index].score *= multiplier;
+                if (adj.additionalReason) {
+                  scores[adj.index].reasons.push(adj.additionalReason);
+                }
+              }
+            }
+          }
+        }
+      } catch (parseError) {
+        console.warn("Could not parse AI response, using original scores:", parseError);
+      }
+
+      await this.logTrainingSignal('ai_enhancement_applied', {
+        userId,
+        candidateCount: scores.length,
+        timestamp: new Date().toISOString()
+      });
+
+    } catch (error) {
+      console.error("AI enhancement failed, using original scores:", error);
+    }
+
+    return scores;
+  }
+
+  async getAIRecommendationExplanation(userId: string, targetUserId: string): Promise<string> {
+    if (!process.env.GEMINI_API_KEY) {
+      return "Recommended based on your location and preferences.";
+    }
+
+    try {
+      const [user, targetUser] = await Promise.all([
+        this.getUser(userId),
+        this.getUser(targetUserId)
+      ]);
+
+      if (!user || !targetUser) {
+        return "Recommended for you.";
+      }
+
+      const prompt = `You are writing a brief, friendly explanation for why two van-life nomads might connect.
+
+User 1: ${user.firstName || 'A nomad'}
+User 2: ${targetUser.firstName || 'Another nomad'}
+
+Write a single sentence (max 15 words) explaining why they might enjoy connecting.
+Be warm, casual, and focus on the van-life/travel lifestyle.
+Don't use emojis. Be genuine.`;
+
+      const response = await ai.models.generateContent({
+        model: "gemini-2.5-flash",
+        contents: prompt,
+      });
+
+      return response.text?.trim() || "You might enjoy traveling together.";
+    } catch (error) {
+      console.error("Failed to generate AI explanation:", error);
+      return "Recommended based on your journey.";
+    }
   }
 
   private aggregateScores(scores: RecommendationScore[]): RecommendationScore[] {
@@ -252,7 +372,7 @@ export class RecommendationEngine {
       .from(recommendations)
       .where(and(
         eq(recommendations.userId, userId),
-        eq(recommendations.targetId, score.targetUserId),
+        eq(recommendations.recommendedUserId, score.targetUserId),
         eq(recommendations.isActive, true)
       ))
       .limit(1);
@@ -260,8 +380,8 @@ export class RecommendationEngine {
     if (existing.length > 0) {
       const [updated] = await db.update(recommendations)
         .set({
-          confidenceScore: score.score,
-          reason: score.reasons.join('; '),
+          confidenceScore: Math.round(score.score),
+          reasonCodes: score.reasons,
           updatedAt: new Date()
         })
         .where(eq(recommendations.id, existing[0].id))
@@ -272,10 +392,9 @@ export class RecommendationEngine {
     const [rec] = await db.insert(recommendations)
       .values({
         userId,
-        targetId: score.targetUserId,
-        type: score.type,
-        confidenceScore: score.score,
-        reason: score.reasons.join('; '),
+        recommendedUserId: score.targetUserId,
+        confidenceScore: Math.round(score.score),
+        reasonCodes: score.reasons,
         isActive: true
       })
       .returning();
@@ -283,10 +402,9 @@ export class RecommendationEngine {
     return rec;
   }
 
-  private async logTrainingSignal(userId: string, signalType: string, data: any): Promise<void> {
+  private async logTrainingSignal(signalType: string, data: Record<string, unknown>): Promise<void> {
     try {
       await db.insert(aiTrainingSignals).values({
-        userId,
         signalType,
         signalData: data,
         processed: false
@@ -299,25 +417,28 @@ export class RecommendationEngine {
   async processUserInteraction(userId: string, interactionType: string, targetId: string): Promise<void> {
     const weight = INTERACTION_WEIGHTS[interactionType as keyof typeof INTERACTION_WEIGHTS] || 1;
 
-    await this.logTrainingSignal(userId, 'user_interaction', {
+    await this.logTrainingSignal('user_interaction', {
+      userId,
       interactionType,
       targetId,
       weight,
       timestamp: new Date().toISOString()
     });
 
+    // Check for mutual match
     if (interactionType === 'like' || interactionType === 'super_like') {
       const [mutualInteraction] = await db.select()
         .from(userInteractions)
         .where(and(
           eq(userInteractions.userId, targetId),
-          eq(userInteractions.targetId, userId),
+          eq(userInteractions.targetUserId, userId),
           sql`${userInteractions.interactionType} IN ('like', 'super_like')`
         ))
         .limit(1);
 
       if (mutualInteraction) {
-        await this.logTrainingSignal(userId, 'mutual_match', {
+        await this.logTrainingSignal('mutual_match', {
+          userId,
           matchedUserId: targetId,
           timestamp: new Date().toISOString()
         });
@@ -326,7 +447,7 @@ export class RecommendationEngine {
   }
 
   private calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
-    const R = 6371;
+    const R = 6371; // Earth's radius in km
     const dLat = this.toRad(lat2 - lat1);
     const dLon = this.toRad(lon2 - lon1);
     const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
