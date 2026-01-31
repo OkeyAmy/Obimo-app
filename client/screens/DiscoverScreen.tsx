@@ -1,8 +1,8 @@
-import React, { useState, useCallback, useEffect } from "react";
+import React, { useState, useCallback } from "react";
 import { View, StyleSheet, Dimensions, Pressable, Image, ActivityIndicator, Modal } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
-import { Feather } from "@expo/vector-icons";
+import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import Animated, {
   useAnimatedStyle,
@@ -37,23 +37,10 @@ interface UserProfile {
   createdAt: string;
 }
 
-interface Recommendation {
-  id: string;
-  userId: string;
-  recommendedUserId: string;
-  confidenceScore: number;
-  reasonCodes: string[];
-  isActive: boolean;
-  wasViewed: boolean;
-  wasActedOn: boolean;
-  action: string | null;
-  recommendedUser?: UserProfile;
-}
-
 interface ProfileCardProps {
   user: UserProfile;
   isFirst: boolean;
-  onSwipe: (direction: "left" | "right" | "up", userId: string) => void;
+  onSwipe: (direction: "left" | "right", userId: string) => void;
 }
 
 function ProfileCard({ user, isFirst, onSwipe }: ProfileCardProps) {
@@ -61,7 +48,7 @@ function ProfileCard({ user, isFirst, onSwipe }: ProfileCardProps) {
   const translateY = useSharedValue(0);
   const rotation = useSharedValue(0);
 
-  const handleSwipe = (direction: "left" | "right" | "up") => {
+  const handleSwipe = (direction: "left" | "right") => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     onSwipe(direction, user.id);
   };
@@ -70,16 +57,13 @@ function ProfileCard({ user, isFirst, onSwipe }: ProfileCardProps) {
     .onUpdate((event) => {
       if (!isFirst) return;
       translateX.value = event.translationX;
-      translateY.value = event.translationY;
+      translateY.value = event.translationY * 0.5;
       rotation.value = event.translationX / 20;
     })
     .onEnd((event) => {
       if (!isFirst) return;
 
-      if (event.translationY < -100) {
-        translateY.value = withSpring(-SCREEN_HEIGHT, { damping: 15 });
-        runOnJS(handleSwipe)("up");
-      } else if (event.translationX > SWIPE_THRESHOLD) {
+      if (event.translationX > SWIPE_THRESHOLD) {
         translateX.value = withSpring(SCREEN_WIDTH * 1.5, { damping: 15 });
         runOnJS(handleSwipe)("right");
       } else if (event.translationX < -SWIPE_THRESHOLD) {
@@ -110,16 +94,12 @@ function ProfileCard({ user, isFirst, onSwipe }: ProfileCardProps) {
     };
   });
 
-  const connectOpacity = useAnimatedStyle(() => ({
+  const likeOpacity = useAnimatedStyle(() => ({
     opacity: interpolate(translateX.value, [0, 100], [0, 1], Extrapolation.CLAMP),
   }));
 
-  const passOpacity = useAnimatedStyle(() => ({
+  const nopeOpacity = useAnimatedStyle(() => ({
     opacity: interpolate(translateX.value, [-100, 0], [1, 0], Extrapolation.CLAMP),
-  }));
-
-  const superOpacity = useAnimatedStyle(() => ({
-    opacity: interpolate(translateY.value, [-100, 0], [1, 0], Extrapolation.CLAMP),
   }));
 
   const defaultPhoto = "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&h=600&fit=crop";
@@ -138,52 +118,50 @@ function ProfileCard({ user, isFirst, onSwipe }: ProfileCardProps) {
   };
 
   const age = calculateAge(user.dateOfBirth);
-  const displayName = user.firstName || "Traveler";
+  const displayName = user.firstName || "Nomad";
   const nameWithAge = age ? `${displayName}, ${age}` : displayName;
+
+  const getLocationName = () => {
+    if (!user.latitude || !user.longitude) return null;
+    return "Nearby";
+  };
 
   return (
     <GestureDetector gesture={panGesture}>
       <Animated.View style={[styles.card, animatedStyle]}>
         <Image source={{ uri: userPhoto }} style={styles.cardImage} />
         
-        <Animated.View style={[styles.connectStamp, connectOpacity]}>
-          <ThemedText style={styles.stampTextConnect}>CONNECT</ThemedText>
+        <Animated.View style={[styles.likeStamp, likeOpacity]}>
+          <ThemedText style={styles.stampText}>CONNECT</ThemedText>
         </Animated.View>
         
-        <Animated.View style={[styles.passStamp, passOpacity]}>
-          <ThemedText style={styles.stampTextPass}>PASS</ThemedText>
-        </Animated.View>
-
-        <Animated.View style={[styles.superStamp, superOpacity]}>
-          <ThemedText style={styles.stampTextSuper}>SUPER</ThemedText>
+        <Animated.View style={[styles.nopeStamp, nopeOpacity]}>
+          <ThemedText style={styles.stampTextNope}>PASS</ThemedText>
         </Animated.View>
 
         <LinearGradient
-          colors={["transparent", "rgba(0,0,0,0.8)"]}
+          colors={["transparent", "rgba(0,0,0,0.7)"]}
           style={styles.cardOverlay}
         >
           <View style={styles.userInfo}>
-            <ThemedText style={styles.userName}>{nameWithAge}</ThemedText>
-            
-            <View style={styles.infoRow}>
-              <Feather name="navigation" size={14} color="#FFFFFF" />
-              <ThemedText style={styles.infoText}>5 miles away</ThemedText>
+            <View style={styles.nameRow}>
+              <ThemedText style={styles.userName}>{nameWithAge}</ThemedText>
+              <View style={styles.onlineDot} />
             </View>
             
-            <View style={styles.infoRow}>
-              <Feather name="compass" size={14} color="#FFFFFF" />
-              <ThemedText style={styles.infoText}>Sprinter Van</ThemedText>
+            <View style={styles.tagRow}>
+              <View style={styles.tag}>
+                <Feather name="message-circle" size={12} color="#FFFFFF" />
+                <ThemedText style={styles.tagText}>Here to connect</ThemedText>
+              </View>
             </View>
             
-            <View style={styles.infoRow}>
-              <Feather name="map" size={14} color="#FFFFFF" />
-              <ThemedText style={styles.infoText}>12 places visited</ThemedText>
-            </View>
-
-            <Pressable style={styles.seeMapButton}>
-              <ThemedText style={styles.seeMapText}>See travel map</ThemedText>
-              <Feather name="arrow-right" size={14} color="#FFFFFF" />
-            </Pressable>
+            {getLocationName() ? (
+              <View style={styles.locationRow}>
+                <Feather name="map-pin" size={14} color="#FFFFFF" />
+                <ThemedText style={styles.locationText}>{getLocationName()}</ThemedText>
+              </View>
+            ) : null}
           </View>
         </LinearGradient>
       </Animated.View>
@@ -197,34 +175,12 @@ export default function DiscoverScreen() {
   const queryClient = useQueryClient();
   const [swipedUserIds, setSwipedUserIds] = useState<string[]>([]);
   const [showFilterModal, setShowFilterModal] = useState(false);
-  const [selectedRadius, setSelectedRadius] = useState("10 mi");
-  const [showRadiusDropdown, setShowRadiusDropdown] = useState(false);
-  
-  const [filters, setFilters] = useState({
-    vanType: "Any",
-    ageRange: "Any",
-    gender: "Everyone",
-    placesVisited: "Any",
-    lastActive: "Any",
-  });
+  const [showLikesModal, setShowLikesModal] = useState(false);
   
   const currentUserId = "user-1";
 
-  const { data: recommendationsData, isLoading: isLoadingRecs, refetch: refetchRecs } = useQuery<{ recommendations: Recommendation[] }>({
-    queryKey: ["/api/recommendations", currentUserId, "generate"],
-    queryFn: async () => {
-      const response = await fetch(`/api/recommendations/${currentUserId}/generate`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-      });
-      return response.json();
-    },
-    staleTime: 1000 * 60 * 5,
-  });
-
-  const { data: fallbackUsers = [], isLoading: isLoadingFallback } = useQuery<UserProfile[]>({
+  const { data: users = [], isLoading, refetch } = useQuery<UserProfile[]>({
     queryKey: ["/api/discover", currentUserId],
-    enabled: !recommendationsData?.recommendations?.length,
   });
 
   const connectionMutation = useMutation({
@@ -242,54 +198,44 @@ export default function DiscoverScreen() {
     },
   });
 
-  const recommendations = recommendationsData?.recommendations || [];
-  const usersFromRecs = recommendations.map(r => r.recommendedUser).filter(Boolean) as UserProfile[];
-  const allUsers = usersFromRecs.length > 0 ? usersFromRecs : fallbackUsers;
-  const visibleUsers = allUsers.filter(u => !swipedUserIds.includes(u.id));
+  const visibleUsers = users.filter(u => !swipedUserIds.includes(u.id));
 
-  const handleSwipe = useCallback((direction: "left" | "right" | "up", userId: string) => {
+  const handleSwipe = useCallback((direction: "left" | "right", userId: string) => {
     setSwipedUserIds(prev => [...prev, userId]);
 
-    if (direction === "right" || direction === "up") {
+    if (direction === "right") {
       connectionMutation.mutate({
         userId: currentUserId,
         connectedUserId: userId,
-        connectionType: direction === "up" ? "super" : "standard",
+        connectionType: "standard",
       });
     }
 
-    const interactionType = direction === "right" ? "like" : direction === "up" ? "super_like" : "pass";
     interactionMutation.mutate({
       userId: currentUserId,
       targetUserId: userId,
-      interactionType,
+      interactionType: direction === "right" ? "like" : "pass",
       context: "discover",
     });
   }, [connectionMutation, interactionMutation, currentUserId]);
 
-  const handlePass = () => {
+  const handleDislike = () => {
     if (visibleUsers.length === 0) return;
     handleSwipe("left", visibleUsers[0].id);
   };
 
-  const handleSuperConnect = () => {
-    if (visibleUsers.length === 0) return;
-    handleSwipe("up", visibleUsers[0].id);
-  };
-
-  const handleConnect = () => {
+  const handleLike = () => {
     if (visibleUsers.length === 0) return;
     handleSwipe("right", visibleUsers[0].id);
   };
 
   const cardHeight = SCREEN_HEIGHT - insets.top - tabBarHeight - 180;
-  const isLoading = isLoadingRecs || (isLoadingFallback && !recommendations.length);
 
   if (isLoading) {
     return (
       <View style={[styles.container, styles.loadingContainer, { paddingTop: insets.top }]}>
         <ActivityIndicator size="large" color={ObimoColors.textPrimary} />
-        <ThemedText style={styles.loadingText}>Finding nomads for you...</ThemedText>
+        <ThemedText style={styles.loadingText}>Finding fellow nomads...</ThemedText>
       </View>
     );
   }
@@ -297,52 +243,24 @@ export default function DiscoverScreen() {
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <View style={styles.header}>
-        <Pressable style={styles.settingsButton}>
-          <Feather name="sliders" size={18} color={ObimoColors.textSecondary} />
-        </Pressable>
-        
-        <Pressable 
-          style={styles.radiusSelector}
-          onPress={() => setShowRadiusDropdown(!showRadiusDropdown)}
-        >
-          <ThemedText style={styles.radiusText}>Radius: {selectedRadius}</ThemedText>
-          <Feather name="chevron-down" size={16} color={ObimoColors.textPrimary} />
-        </Pressable>
-        
-        <Pressable 
-          style={styles.filterButton}
-          onPress={() => setShowFilterModal(true)}
-          testID="button-filter"
-        >
-          <ThemedText style={styles.filterText}>Filter</ThemedText>
-          <Feather name="target" size={16} color={ObimoColors.textPrimary} />
-        </Pressable>
-      </View>
-
-      {showRadiusDropdown ? (
-        <View style={styles.radiusDropdown}>
-          {["5 mi", "10 mi", "20 mi", "50 mi"].map((radius) => (
-            <Pressable
-              key={radius}
-              style={[
-                styles.radiusOption,
-                selectedRadius === radius ? styles.radiusOptionSelected : null,
-              ]}
-              onPress={() => {
-                setSelectedRadius(radius);
-                setShowRadiusDropdown(false);
-              }}
-            >
-              <ThemedText style={[
-                styles.radiusOptionText,
-                selectedRadius === radius ? styles.radiusOptionTextSelected : null,
-              ]}>
-                {radius}
-              </ThemedText>
-            </Pressable>
-          ))}
+        <ThemedText style={styles.headerTitle}>Encounters</ThemedText>
+        <View style={styles.headerActions}>
+          <Pressable 
+            style={styles.headerButton}
+            onPress={() => setShowLikesModal(true)}
+            testID="button-likes"
+          >
+            <Feather name="heart" size={22} color={ObimoColors.textPrimary} />
+          </Pressable>
+          <Pressable 
+            style={styles.headerButton}
+            onPress={() => setShowFilterModal(true)}
+            testID="button-filter"
+          >
+            <Feather name="sliders" size={22} color={ObimoColors.textPrimary} />
+          </Pressable>
         </View>
-      ) : null}
+      </View>
 
       <View style={[styles.cardContainer, { height: cardHeight }]}>
         {visibleUsers.length > 0 ? (
@@ -359,41 +277,28 @@ export default function DiscoverScreen() {
             ))
         ) : (
           <View style={styles.emptyState}>
-            <Feather name="sun" size={64} color={ObimoColors.textSecondary} />
-            <ThemedText style={styles.emptyText}>You've seen everyone nearby!</ThemedText>
-            <Pressable style={styles.expandButton}>
-              <ThemedText style={styles.expandButtonText}>Expand radius to 20 miles</ThemedText>
-            </Pressable>
-            <Pressable 
-              style={styles.refreshLink} 
-              onPress={() => { setSwipedUserIds([]); refetchRecs(); }}
-            >
-              <ThemedText style={styles.refreshLinkText}>Come back later</ThemedText>
+            <MaterialCommunityIcons name="compass-outline" size={64} color={ObimoColors.textSecondary} />
+            <ThemedText style={styles.emptyText}>No more nomads nearby</ThemedText>
+            <ThemedText style={styles.emptySubtext}>Check back later or expand your search</ThemedText>
+            <Pressable style={styles.refreshButton} onPress={() => { setSwipedUserIds([]); refetch(); }}>
+              <ThemedText style={styles.refreshButtonText}>Refresh</ThemedText>
             </Pressable>
           </View>
         )}
       </View>
 
-      <View style={[styles.actionButtons, { marginBottom: tabBarHeight + Spacing.md }]}>
+      <View style={[styles.actionButtons, { marginBottom: tabBarHeight + Spacing.xl }]}>
         <Pressable
-          style={[styles.actionButton, styles.passButton]}
-          onPress={handlePass}
+          style={[styles.actionButton, styles.dislikeButton]}
+          onPress={handleDislike}
           testID="button-pass"
         >
           <Feather name="x" size={28} color="#EF4444" />
         </Pressable>
 
         <Pressable
-          style={[styles.actionButton, styles.superButton]}
-          onPress={handleSuperConnect}
-          testID="button-super"
-        >
-          <Feather name="star" size={24} color="#F59E0B" />
-        </Pressable>
-
-        <Pressable
-          style={[styles.actionButton, styles.connectButton]}
-          onPress={handleConnect}
+          style={[styles.actionButton, styles.likeButton]}
+          onPress={handleLike}
           testID="button-connect"
         >
           <Feather name="heart" size={28} color="#22C55E" />
@@ -416,105 +321,33 @@ export default function DiscoverScreen() {
           
           <View style={styles.modalContent}>
             <View style={styles.filterSection}>
-              <ThemedText style={styles.filterLabel}>Van Type</ThemedText>
+              <ThemedText style={styles.filterLabel}>Distance</ThemedText>
               <View style={styles.filterOptions}>
-                {["Sprinter", "Class B", "School Bus", "Campervan", "Any"].map((option) => (
-                  <Pressable 
-                    key={option} 
-                    style={[
-                      styles.filterOption,
-                      filters.vanType === option ? styles.filterOptionSelected : null,
-                    ]}
-                    onPress={() => setFilters({...filters, vanType: option})}
-                  >
-                    <ThemedText style={[
-                      styles.filterOptionText,
-                      filters.vanType === option ? styles.filterOptionTextSelected : null,
-                    ]}>{option}</ThemedText>
+                {["10 mi", "25 mi", "50 mi", "100 mi"].map((option) => (
+                  <Pressable key={option} style={styles.filterOption}>
+                    <ThemedText style={styles.filterOptionText}>{option}</ThemedText>
                   </Pressable>
                 ))}
               </View>
             </View>
             
             <View style={styles.filterSection}>
+              <ThemedText style={styles.filterLabel}>Looking for</ThemedText>
+              <View style={styles.filterOptions}>
+                {["Everyone", "Men", "Women", "Non-binary"].map((option) => (
+                  <Pressable key={option} style={styles.filterOption}>
+                    <ThemedText style={styles.filterOptionText}>{option}</ThemedText>
+                  </Pressable>
+                ))}
+              </View>
+            </View>
+
+            <View style={styles.filterSection}>
               <ThemedText style={styles.filterLabel}>Age Range</ThemedText>
               <View style={styles.filterOptions}>
-                {["18-25", "25-35", "35-45", "45+", "Any"].map((option) => (
-                  <Pressable 
-                    key={option} 
-                    style={[
-                      styles.filterOption,
-                      filters.ageRange === option ? styles.filterOptionSelected : null,
-                    ]}
-                    onPress={() => setFilters({...filters, ageRange: option})}
-                  >
-                    <ThemedText style={[
-                      styles.filterOptionText,
-                      filters.ageRange === option ? styles.filterOptionTextSelected : null,
-                    ]}>{option}</ThemedText>
-                  </Pressable>
-                ))}
-              </View>
-            </View>
-
-            <View style={styles.filterSection}>
-              <ThemedText style={styles.filterLabel}>Gender</ThemedText>
-              <View style={styles.filterOptions}>
-                {["Men", "Women", "Non-binary", "Everyone"].map((option) => (
-                  <Pressable 
-                    key={option} 
-                    style={[
-                      styles.filterOption,
-                      filters.gender === option ? styles.filterOptionSelected : null,
-                    ]}
-                    onPress={() => setFilters({...filters, gender: option})}
-                  >
-                    <ThemedText style={[
-                      styles.filterOptionText,
-                      filters.gender === option ? styles.filterOptionTextSelected : null,
-                    ]}>{option}</ThemedText>
-                  </Pressable>
-                ))}
-              </View>
-            </View>
-
-            <View style={styles.filterSection}>
-              <ThemedText style={styles.filterLabel}>Places Visited (minimum)</ThemedText>
-              <View style={styles.filterOptions}>
-                {["1+", "5+", "10+", "20+", "Any"].map((option) => (
-                  <Pressable 
-                    key={option} 
-                    style={[
-                      styles.filterOption,
-                      filters.placesVisited === option ? styles.filterOptionSelected : null,
-                    ]}
-                    onPress={() => setFilters({...filters, placesVisited: option})}
-                  >
-                    <ThemedText style={[
-                      styles.filterOptionText,
-                      filters.placesVisited === option ? styles.filterOptionTextSelected : null,
-                    ]}>{option}</ThemedText>
-                  </Pressable>
-                ))}
-              </View>
-            </View>
-
-            <View style={styles.filterSection}>
-              <ThemedText style={styles.filterLabel}>Last Active</ThemedText>
-              <View style={styles.filterOptions}>
-                {["24h", "Week", "Month", "Any"].map((option) => (
-                  <Pressable 
-                    key={option} 
-                    style={[
-                      styles.filterOption,
-                      filters.lastActive === option ? styles.filterOptionSelected : null,
-                    ]}
-                    onPress={() => setFilters({...filters, lastActive: option})}
-                  >
-                    <ThemedText style={[
-                      styles.filterOptionText,
-                      filters.lastActive === option ? styles.filterOptionTextSelected : null,
-                    ]}>{option}</ThemedText>
+                {["18-25", "25-35", "35-45", "45+"].map((option) => (
+                  <Pressable key={option} style={styles.filterOption}>
+                    <ThemedText style={styles.filterOptionText}>{option}</ThemedText>
                   </Pressable>
                 ))}
               </View>
@@ -527,6 +360,28 @@ export default function DiscoverScreen() {
           >
             <ThemedText style={styles.applyButtonText}>Apply Filters</ThemedText>
           </Pressable>
+        </View>
+      </Modal>
+
+      <Modal
+        visible={showLikesModal}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setShowLikesModal(false)}
+      >
+        <View style={styles.modalContainer}>
+          <View style={styles.modalHeader}>
+            <ThemedText style={styles.modalTitle}>Who Liked You</ThemedText>
+            <Pressable onPress={() => setShowLikesModal(false)}>
+              <Feather name="x" size={24} color={ObimoColors.textPrimary} />
+            </Pressable>
+          </View>
+          
+          <View style={styles.emptyLikes}>
+            <Feather name="heart" size={48} color={ObimoColors.textSecondary} />
+            <ThemedText style={styles.emptyLikesText}>No likes yet</ThemedText>
+            <ThemedText style={styles.emptyLikesSubtext}>Keep swiping to get more matches</ThemedText>
+          </View>
         </View>
       </Modal>
     </View>
@@ -551,62 +406,24 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.xl,
+    paddingVertical: Spacing.lg,
   },
-  settingsButton: {
-    padding: Spacing.sm,
-  },
-  radiusSelector: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: Spacing.xs,
-  },
-  radiusText: {
-    ...Typography.body,
+  headerTitle: {
+    ...Typography.h2,
     color: ObimoColors.textPrimary,
-    fontWeight: "500",
   },
-  radiusDropdown: {
-    position: "absolute",
-    top: 100,
-    left: "50%",
-    marginLeft: -60,
-    width: 120,
-    backgroundColor: "#FFFFFF",
-    borderRadius: BorderRadius.lg,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    elevation: 8,
-    zIndex: 100,
+  headerActions: {
+    flexDirection: "row",
+    gap: Spacing.md,
   },
-  radiusOption: {
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: ObimoColors.background,
-  },
-  radiusOptionSelected: {
+  headerButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     backgroundColor: ObimoColors.background,
-  },
-  radiusOptionText: {
-    ...Typography.body,
-    color: ObimoColors.textPrimary,
-    textAlign: "center",
-  },
-  radiusOptionTextSelected: {
-    fontWeight: "600",
-  },
-  filterButton: {
-    flexDirection: "row",
     alignItems: "center",
-    gap: Spacing.xs,
-  },
-  filterText: {
-    ...Typography.body,
-    color: ObimoColors.textPrimary,
+    justifyContent: "center",
   },
   cardContainer: {
     flex: 1,
@@ -634,44 +451,58 @@ const styles = StyleSheet.create({
     right: 0,
     paddingHorizontal: Spacing.xl,
     paddingBottom: Spacing.xl,
-    paddingTop: 100,
+    paddingTop: Spacing["4xl"],
   },
   userInfo: {
     flex: 1,
   },
+  nameRow: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
   userName: {
-    fontSize: 28,
+    ...Typography.h2,
+    color: "#FFFFFF",
     fontWeight: "700",
-    color: "#FFFFFF",
-    marginBottom: Spacing.sm,
   },
-  infoRow: {
+  onlineDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: "#22C55E",
+    marginLeft: Spacing.sm,
+  },
+  tagRow: {
     flexDirection: "row",
-    alignItems: "center",
-    gap: Spacing.sm,
-    marginBottom: Spacing.xs,
-  },
-  infoText: {
-    ...Typography.body,
-    color: "#FFFFFF",
-  },
-  seeMapButton: {
-    flexDirection: "row",
-    alignItems: "center",
+    marginTop: Spacing.sm,
+    flexWrap: "wrap",
     gap: Spacing.xs,
-    marginTop: Spacing.md,
+  },
+  tag: {
+    flexDirection: "row",
+    alignItems: "center",
     backgroundColor: "rgba(255, 255, 255, 0.2)",
     paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
+    paddingVertical: Spacing.xs,
     borderRadius: BorderRadius.full,
-    alignSelf: "flex-start",
+    gap: Spacing.xs,
   },
-  seeMapText: {
+  tagText: {
     ...Typography.small,
     color: "#FFFFFF",
     fontWeight: "500",
   },
-  connectStamp: {
+  locationRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: Spacing.sm,
+    gap: Spacing.xs,
+  },
+  locationText: {
+    ...Typography.body,
+    color: "#FFFFFF",
+  },
+  likeStamp: {
     position: "absolute",
     top: 50,
     left: 20,
@@ -682,7 +513,7 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     transform: [{ rotate: "-15deg" }],
   },
-  passStamp: {
+  nopeStamp: {
     position: "absolute",
     top: 50,
     right: 20,
@@ -693,43 +524,27 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     transform: [{ rotate: "15deg" }],
   },
-  superStamp: {
-    position: "absolute",
-    top: 50,
-    left: "50%",
-    marginLeft: -60,
-    borderWidth: 4,
-    borderColor: "#F59E0B",
-    borderRadius: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-  },
-  stampTextConnect: {
-    fontSize: 24,
+  stampText: {
+    fontSize: 28,
     fontWeight: "800",
     color: "#22C55E",
   },
-  stampTextPass: {
-    fontSize: 24,
+  stampTextNope: {
+    fontSize: 28,
     fontWeight: "800",
     color: "#EF4444",
-  },
-  stampTextSuper: {
-    fontSize: 24,
-    fontWeight: "800",
-    color: "#F59E0B",
   },
   actionButtons: {
     flexDirection: "row",
     justifyContent: "center",
     alignItems: "center",
-    gap: Spacing["2xl"],
-    paddingVertical: Spacing.md,
+    gap: Spacing["3xl"],
+    paddingVertical: Spacing.lg,
   },
   actionButton: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
+    width: 64,
+    height: 64,
+    borderRadius: 32,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "#FFFFFF",
@@ -739,15 +554,11 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 4,
   },
-  passButton: {
+  dislikeButton: {
     borderWidth: 2,
     borderColor: "#FEE2E2",
   },
-  superButton: {
-    borderWidth: 2,
-    borderColor: "#FEF3C7",
-  },
-  connectButton: {
+  likeButton: {
     borderWidth: 2,
     borderColor: "#DCFCE7",
   },
@@ -761,25 +572,23 @@ const styles = StyleSheet.create({
     marginTop: Spacing.xl,
     textAlign: "center",
   },
-  expandButton: {
+  emptySubtext: {
+    ...Typography.body,
+    color: ObimoColors.textSecondary,
+    marginTop: Spacing.sm,
+    textAlign: "center",
+  },
+  refreshButton: {
     marginTop: Spacing.xl,
     backgroundColor: ObimoColors.textPrimary,
     paddingHorizontal: Spacing["2xl"],
     paddingVertical: Spacing.md,
     borderRadius: BorderRadius.lg,
   },
-  expandButtonText: {
+  refreshButtonText: {
     ...Typography.body,
     color: "#FFFFFF",
     fontWeight: "600",
-  },
-  refreshLink: {
-    marginTop: Spacing.lg,
-  },
-  refreshLinkText: {
-    ...Typography.body,
-    color: ObimoColors.textSecondary,
-    textDecorationLine: "underline",
   },
   modalContainer: {
     flex: 1,
@@ -822,15 +631,9 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.full,
     backgroundColor: ObimoColors.background,
   },
-  filterOptionSelected: {
-    backgroundColor: ObimoColors.textPrimary,
-  },
   filterOptionText: {
     ...Typography.body,
     color: ObimoColors.textPrimary,
-  },
-  filterOptionTextSelected: {
-    color: "#FFFFFF",
   },
   applyButton: {
     margin: Spacing.xl,
@@ -843,5 +646,22 @@ const styles = StyleSheet.create({
     ...Typography.body,
     color: "#FFFFFF",
     fontWeight: "600",
+  },
+  emptyLikes: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: Spacing.xl,
+  },
+  emptyLikesText: {
+    ...Typography.h3,
+    color: ObimoColors.textPrimary,
+    marginTop: Spacing.lg,
+  },
+  emptyLikesSubtext: {
+    ...Typography.body,
+    color: ObimoColors.textSecondary,
+    marginTop: Spacing.sm,
+    textAlign: "center",
   },
 });

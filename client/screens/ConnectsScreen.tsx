@@ -1,5 +1,5 @@
-import React from "react";
-import { View, StyleSheet, FlatList, Pressable, ActivityIndicator } from "react-native";
+import React, { useState } from "react";
+import { View, StyleSheet, FlatList, Pressable, ActivityIndicator, ScrollView } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import { Feather } from "@expo/vector-icons";
@@ -27,7 +27,27 @@ interface Connection {
   };
 }
 
+interface Message {
+  id: string;
+  senderName: string;
+  preview: string;
+  time: string;
+  unread: boolean;
+  avatarUrl: string;
+}
+
 const defaultAvatar = "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&h=200&fit=crop";
+
+const demoMessages: Message[] = [
+  {
+    id: "1",
+    senderName: "Joe",
+    preview: "Are you exploring DC beca...",
+    time: "7m",
+    unread: true,
+    avatarUrl: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=200&h=200&fit=crop",
+  },
+];
 
 export default function ConnectsScreen() {
   const insets = useSafeAreaInsets();
@@ -39,70 +59,122 @@ export default function ConnectsScreen() {
     queryKey: ["/api/connections", currentUserId],
   });
 
-  const activeConnections = connections.filter(c => c.status === "active" || c.status === "connected");
-
-  const calculateDistance = (lat: string | null, lng: string | null) => {
-    if (!lat || !lng) return null;
-    return Math.floor(Math.random() * 100) + 5;
-  };
+  const pendingConnections = connections.filter(c => c.status === "pending");
+  const activeConnections = connections.filter(c => c.status === "active");
 
   const formatDate = (dateString: string | null) => {
     if (!dateString) return "";
     const date = new Date(dateString);
-    return date.toLocaleDateString("en-US", { month: "short", year: "numeric" });
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / (1000 * 60));
+    
+    if (diffMins < 60) return `${diffMins}m`;
+    const diffHours = Math.floor(diffMins / 60);
+    if (diffHours < 24) return `${diffHours}h`;
+    const diffDays = Math.floor(diffHours / 24);
+    if (diffDays < 7) return `${diffDays}d`;
+    return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
   };
 
-  const nearbyConnections = activeConnections.filter(c => {
-    const distance = calculateDistance(c.connectedUser?.latitude || null, c.connectedUser?.longitude || null);
-    return distance && distance < 50;
-  });
-
-  const recentConnections = activeConnections.slice(0, 8);
-
-  const renderConnectionCard = (connection: Connection, isNearby: boolean = false) => {
-    const user = connection.connectedUser;
-    const photoUrl = user?.photos && user.photos.length > 0 ? user.photos[0] : defaultAvatar;
-    const distance = calculateDistance(user?.latitude || null, user?.longitude || null);
+  const renderLikesRow = () => {
+    const likes = pendingConnections.slice(0, 5);
     
     return (
-      <Pressable style={styles.connectionCard} testID={`connection-${connection.id}`}>
-        <Image source={{ uri: photoUrl }} style={styles.connectionPhoto} contentFit="cover" />
-        
-        <View style={styles.connectionInfo}>
-          <View style={styles.connectionHeader}>
-            <ThemedText style={styles.connectionName}>
-              {user?.firstName || "Traveler"}
-            </ThemedText>
-            {isNearby ? <View style={styles.onlineDot} /> : null}
-          </View>
-          
-          <View style={styles.connectionMeta}>
-            <Feather name="navigation" size={11} color={ObimoColors.textSecondary} />
-            <ThemedText style={styles.connectionDistance}>
-              {distance ? `${distance} miles away` : "Location unknown"}
-            </ThemedText>
-          </View>
-          
-          <ThemedText style={styles.connectionLastMet}>
-            Last met: Moab, {formatDate(connection.matchedAt || connection.createdAt)}
-          </ThemedText>
+      <ScrollView 
+        horizontal 
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.likesRow}
+      >
+        {likes.length > 0 ? (
+          likes.map((connection, index) => {
+            const user = connection.connectedUser;
+            const photoUrl = user?.photos && user.photos.length > 0 
+              ? user.photos[0] 
+              : defaultAvatar;
+            
+            return (
+              <Pressable key={connection.id} style={styles.likeItem}>
+                <View style={styles.likeAvatarContainer}>
+                  <Image
+                    source={{ uri: photoUrl }}
+                    style={styles.likeAvatar}
+                    contentFit="cover"
+                  />
+                  <View style={styles.likeNotificationBadge} />
+                </View>
+              </Pressable>
+            );
+          })
+        ) : (
+          <>
+            <View style={styles.likeItemPlaceholder}>
+              <View style={styles.likeAvatarPlaceholder}>
+                <View style={styles.likeBadgeCount}>
+                  <ThemedText style={styles.likeBadgeText}>0</ThemedText>
+                </View>
+              </View>
+            </View>
+          </>
+        )}
+      </ScrollView>
+    );
+  };
+
+  const renderMessageItem = ({ item }: { item: Message }) => (
+    <Pressable style={styles.messageItem} testID={`message-${item.id}`}>
+      <View style={styles.messageAvatarContainer}>
+        <Image
+          source={{ uri: item.avatarUrl }}
+          style={styles.messageAvatar}
+          contentFit="cover"
+        />
+      </View>
+      
+      <View style={styles.messageContent}>
+        <View style={styles.messageHeader}>
+          <ThemedText style={styles.messageSender}>{item.senderName}</ThemedText>
+          <ThemedText style={styles.messageTime}>{item.time}</ThemedText>
+        </View>
+        <ThemedText style={styles.messagePreview} numberOfLines={1}>
+          {item.preview}
+        </ThemedText>
+      </View>
+      
+      {item.unread ? (
+        <View style={styles.unreadDot} />
+      ) : null}
+    </Pressable>
+  );
+
+  const renderConnectionItem = ({ item }: { item: Connection }) => {
+    const user = item.connectedUser;
+    const photoUrl = user?.photos && user.photos.length > 0 
+      ? user.photos[0] 
+      : defaultAvatar;
+    
+    return (
+      <Pressable style={styles.messageItem} testID={`connection-${item.id}`}>
+        <View style={styles.messageAvatarContainer}>
+          <Image
+            source={{ uri: photoUrl }}
+            style={styles.messageAvatar}
+            contentFit="cover"
+          />
         </View>
         
-        <View style={styles.connectionActions}>
-          {isNearby ? (
-            <Pressable style={styles.reconnectButton}>
-              <ThemedText style={styles.reconnectButtonText}>Reconnect</ThemedText>
-            </Pressable>
-          ) : (
-            <>
-              <Pressable style={styles.actionIconButton}>
-                <Feather name="map" size={16} color={ObimoColors.textSecondary} />
-              </Pressable>
-              <Pressable style={styles.actionIconButton}>
-                <Feather name="message-circle" size={16} color={ObimoColors.textSecondary} />
-              </Pressable>
-            </>
-          )}
+        <View style={styles.messageContent}>
+          <View style={styles.messageHeader}>
+            <ThemedText style={styles.messageSender}>
+              {user?.firstName || "Nomad"}
+            </ThemedText>
+            <ThemedText style={styles.messageTime}>
+              {formatDate(item.matchedAt || item.createdAt)}
+            </ThemedText>
+          </View>
+          <ThemedText style={styles.messagePreview} numberOfLines={1}>
+            Tap to start a conversation
+          </ThemedText>
         </View>
       </Pressable>
     );
@@ -117,115 +189,36 @@ export default function ConnectsScreen() {
     );
   }
 
-  const hasAnyConnections = activeConnections.length > 0;
-
-  if (!hasAnyConnections) {
-    return (
-      <View style={[styles.container, { paddingTop: insets.top }]}>
-        <View style={styles.header}>
-          <Feather name="message-circle" size={22} color={ObimoColors.textPrimary} />
-          <ThemedText style={styles.headerTitle}>Connects</ThemedText>
-        </View>
-        
-        <View style={styles.emptyContainer}>
-          <Feather name="users" size={56} color={ObimoColors.textSecondary} />
-          <ThemedText style={styles.emptyTitle}>No connections yet</ThemedText>
-          <ThemedText style={styles.emptySubtitle}>
-            Start swiping in Discover to find travel companions. When you match with someone, they'll appear here.
-          </ThemedText>
-          <Pressable style={styles.discoverButton}>
-            <ThemedText style={styles.discoverButtonText}>Go to Discover</ThemedText>
-          </Pressable>
-        </View>
-      </View>
-    );
-  }
-
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
-      <View style={styles.header}>
-        <View style={styles.headerLeft}>
-          <Feather name="message-circle" size={22} color={ObimoColors.textPrimary} />
-          <ThemedText style={styles.headerTitle}>Connects</ThemedText>
-        </View>
-        <Pressable style={styles.searchButton}>
-          <Feather name="search" size={18} color={ObimoColors.textSecondary} />
-        </Pressable>
-      </View>
-
+      {renderLikesRow()}
+      
+      <View style={styles.divider} />
+      
       <FlatList
-        data={[]}
-        renderItem={() => null}
-        ListHeaderComponent={
-          <View style={styles.sectionsContainer}>
-            {nearbyConnections.length > 0 ? (
-              <View style={styles.section}>
-                <View style={styles.sectionHeader}>
-                  <View style={styles.sectionDot} />
-                  <ThemedText style={styles.sectionTitle}>NEARBY NOW</ThemedText>
-                  <View style={styles.sectionBadge}>
-                    <ThemedText style={styles.sectionBadgeText}>{nearbyConnections.length}</ThemedText>
-                  </View>
-                </View>
-                {nearbyConnections.map(connection => (
-                  <View key={connection.id}>
-                    {renderConnectionCard(connection, true)}
-                  </View>
-                ))}
-              </View>
-            ) : null}
-
-            {recentConnections.length > 0 ? (
-              <View style={styles.section}>
-                <View style={styles.sectionHeader}>
-                  <Feather name="clock" size={14} color={ObimoColors.textSecondary} />
-                  <ThemedText style={styles.sectionTitle}>RECENT CONNECTIONS</ThemedText>
-                  <View style={styles.sectionBadge}>
-                    <ThemedText style={styles.sectionBadgeText}>{recentConnections.length}</ThemedText>
-                  </View>
-                </View>
-                {recentConnections.map(connection => (
-                  <View key={connection.id}>
-                    {renderConnectionCard(connection, false)}
-                  </View>
-                ))}
-                
-                {activeConnections.length > 8 ? (
-                  <Pressable style={styles.seeAllButton}>
-                    <ThemedText style={styles.seeAllText}>
-                      See all companions ({activeConnections.length})
-                    </ThemedText>
-                    <Feather name="arrow-right" size={14} color={ObimoColors.textPrimary} />
-                  </Pressable>
-                ) : null}
-              </View>
-            ) : null}
-
-            {activeConnections.length > 0 ? (
-              <View style={styles.section}>
-                <View style={styles.sectionHeader}>
-                  <Feather name="zap" size={14} color="#F59E0B" />
-                  <ThemedText style={styles.sectionTitle}>REUNION SUGGESTIONS</ThemedText>
-                </View>
-                
-                <View style={styles.suggestionCard}>
-                  <ThemedText style={styles.suggestionText}>
-                    Keep traveling to get personalized reunion suggestions based on shared locations!
-                  </ThemedText>
-                  <Pressable style={styles.suggestionDismiss}>
-                    <ThemedText style={styles.suggestionDismissText}>Got it</ThemedText>
-                  </Pressable>
-                </View>
-              </View>
-            ) : null}
-          </View>
-        }
+        data={activeConnections.length > 0 ? activeConnections : undefined}
+        renderItem={renderConnectionItem}
+        keyExtractor={(item) => item.id}
         contentContainerStyle={[
           styles.listContent,
           { paddingBottom: tabBarHeight + Spacing.xl },
+          activeConnections.length === 0 ? styles.emptyListContent : null,
         ]}
+        ListEmptyComponent={
+          <View style={styles.emptyState}>
+            <Feather name="message-circle" size={48} color={ObimoColors.textSecondary} />
+            <ThemedText style={styles.emptyTitle}>No messages yet</ThemedText>
+            <ThemedText style={styles.emptySubtitle}>
+              When you match with someone, your conversations will appear here
+            </ThemedText>
+          </View>
+        }
         showsVerticalScrollIndicator={false}
       />
+      
+      <Pressable style={[styles.fab, { bottom: tabBarHeight + Spacing.xl }]}>
+        <Feather name="plus" size={24} color="#FFFFFF" />
+      </Pressable>
     </View>
   );
 }
@@ -244,183 +237,117 @@ const styles = StyleSheet.create({
     color: ObimoColors.textSecondary,
     marginTop: Spacing.lg,
   },
-  header: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
+  likesRow: {
     paddingHorizontal: Spacing.xl,
     paddingVertical: Spacing.lg,
-    borderBottomWidth: 1,
-    borderBottomColor: ObimoColors.background,
+    gap: Spacing.md,
   },
-  headerLeft: {
-    flexDirection: "row",
+  likeItem: {
     alignItems: "center",
-    gap: Spacing.sm,
   },
-  headerTitle: {
-    ...Typography.h2,
-    color: ObimoColors.textPrimary,
+  likeAvatarContainer: {
+    position: "relative",
   },
-  searchButton: {
-    padding: Spacing.sm,
+  likeAvatar: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+  },
+  likeNotificationBadge: {
+    position: "absolute",
+    top: 0,
+    right: 0,
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    backgroundColor: "#EF4444",
+    borderWidth: 2,
+    borderColor: "#FFFFFF",
+  },
+  likeItemPlaceholder: {
+    alignItems: "center",
+  },
+  likeAvatarPlaceholder: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: ObimoColors.background,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  likeBadgeCount: {
+    position: "absolute",
+    top: -4,
+    right: -4,
+    backgroundColor: ObimoColors.textSecondary,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 10,
+  },
+  likeBadgeText: {
+    ...Typography.small,
+    color: "#FFFFFF",
+    fontWeight: "700",
+  },
+  divider: {
+    height: 1,
+    backgroundColor: ObimoColors.background,
+    marginHorizontal: Spacing.xl,
   },
   listContent: {
     paddingHorizontal: Spacing.xl,
+    paddingTop: Spacing.lg,
   },
-  sectionsContainer: {
+  emptyListContent: {
     flex: 1,
   },
-  section: {
-    marginTop: Spacing.xl,
-  },
-  sectionHeader: {
+  messageItem: {
     flexDirection: "row",
     alignItems: "center",
-    gap: Spacing.sm,
-    marginBottom: Spacing.md,
+    paddingVertical: Spacing.md,
   },
-  sectionDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: "#22C55E",
+  messageAvatarContainer: {
+    position: "relative",
   },
-  sectionTitle: {
-    ...Typography.small,
-    color: ObimoColors.textSecondary,
-    fontWeight: "600",
-    letterSpacing: 0.5,
-    fontSize: 11,
+  messageAvatar: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
   },
-  sectionBadge: {
-    backgroundColor: ObimoColors.background,
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: 2,
-    borderRadius: BorderRadius.full,
-  },
-  sectionBadgeText: {
-    ...Typography.small,
-    color: ObimoColors.textSecondary,
-    fontSize: 11,
-    fontWeight: "600",
-  },
-  connectionCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: ObimoColors.background,
-    borderRadius: BorderRadius.lg,
-    padding: Spacing.md,
-    marginBottom: Spacing.sm,
-  },
-  connectionPhoto: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-  },
-  connectionInfo: {
+  messageContent: {
     flex: 1,
     marginLeft: Spacing.md,
   },
-  connectionHeader: {
+  messageHeader: {
     flexDirection: "row",
+    justifyContent: "space-between",
     alignItems: "center",
-    gap: Spacing.sm,
   },
-  connectionName: {
-    ...Typography.body,
+  messageSender: {
+    ...Typography.h4,
     color: ObimoColors.textPrimary,
-    fontWeight: "600",
   },
-  onlineDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: "#22C55E",
-  },
-  connectionMeta: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    marginTop: 2,
-  },
-  connectionDistance: {
+  messageTime: {
     ...Typography.small,
     color: ObimoColors.textSecondary,
-    fontSize: 12,
   },
-  connectionLastMet: {
-    ...Typography.small,
+  messagePreview: {
+    ...Typography.body,
     color: ObimoColors.textSecondary,
     marginTop: 2,
-    fontSize: 12,
   },
-  connectionActions: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: Spacing.sm,
+  unreadDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: "#3B82F6",
+    marginLeft: Spacing.sm,
   },
-  reconnectButton: {
-    backgroundColor: "#22C55E",
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-    borderRadius: BorderRadius.lg,
-  },
-  reconnectButtonText: {
-    ...Typography.small,
-    color: "#FFFFFF",
-    fontWeight: "600",
-    fontSize: 12,
-  },
-  actionIconButton: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    backgroundColor: "#FFFFFF",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  seeAllButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: Spacing.xs,
-    paddingVertical: Spacing.md,
-    marginTop: Spacing.sm,
-  },
-  seeAllText: {
-    ...Typography.body,
-    color: ObimoColors.textPrimary,
-    fontWeight: "500",
-  },
-  suggestionCard: {
-    backgroundColor: "#FEF3C7",
-    borderRadius: BorderRadius.lg,
-    padding: Spacing.lg,
-  },
-  suggestionText: {
-    ...Typography.body,
-    color: "#92400E",
-    fontSize: 14,
-  },
-  suggestionDismiss: {
-    alignSelf: "flex-end",
-    marginTop: Spacing.md,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-    backgroundColor: "rgba(146, 64, 14, 0.1)",
-    borderRadius: BorderRadius.lg,
-  },
-  suggestionDismissText: {
-    ...Typography.small,
-    color: "#92400E",
-    fontWeight: "600",
-  },
-  emptyContainer: {
+  emptyState: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    paddingHorizontal: Spacing["3xl"],
+    paddingHorizontal: Spacing["2xl"],
   },
   emptyTitle: {
     ...Typography.h3,
@@ -433,18 +360,20 @@ const styles = StyleSheet.create({
     color: ObimoColors.textSecondary,
     marginTop: Spacing.sm,
     textAlign: "center",
-    lineHeight: 22,
   },
-  discoverButton: {
-    marginTop: Spacing["2xl"],
+  fab: {
+    position: "absolute",
+    right: Spacing.xl,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
     backgroundColor: ObimoColors.textPrimary,
-    paddingHorizontal: Spacing["2xl"],
-    paddingVertical: Spacing.md,
-    borderRadius: BorderRadius.lg,
-  },
-  discoverButtonText: {
-    ...Typography.body,
-    color: "#FFFFFF",
-    fontWeight: "600",
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 8,
   },
 });
