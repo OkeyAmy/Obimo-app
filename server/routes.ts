@@ -808,6 +808,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // ============= DISCOVER / USER ROUTES =============
 
+  // Get user by ID
+  app.get("/api/users/:id", async (req: Request, res: Response) => {
+    try {
+      const id = req.params.id;
+      if (id === "email" || id === "nearby") {
+        return;
+      }
+      const user = await storage.getUser(id);
+      if (!user) {
+        return res.status(404).json({ error: "User not found" });
+      }
+      res.json(user);
+    } catch (error: any) {
+      res.status(500).json({ error: "Failed to fetch user", details: error.message });
+    }
+  });
+
   // Get user by email
   app.get("/api/users/email/:email", async (req: Request, res: Response) => {
     try {

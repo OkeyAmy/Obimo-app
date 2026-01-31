@@ -56,7 +56,7 @@ export default function ConnectsScreen() {
   const currentUserId = "test-user-1";
 
   const { data: connections = [], isLoading } = useQuery<Connection[]>({
-    queryKey: ["/api/connections", currentUserId],
+    queryKey: [`/api/connections/${currentUserId}`],
   });
 
   const pendingConnections = connections.filter(c => c.status === "pending");
@@ -86,37 +86,25 @@ export default function ConnectsScreen() {
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.likesRow}
       >
-        {likes.length > 0 ? (
-          likes.map((connection, index) => {
-            const user = connection.connectedUser;
-            const photoUrl = user?.photos && user.photos.length > 0 
-              ? user.photos[0] 
-              : defaultAvatar;
-            
-            return (
-              <Pressable key={connection.id} style={styles.likeItem}>
-                <View style={styles.likeAvatarContainer}>
-                  <Image
-                    source={{ uri: photoUrl }}
-                    style={styles.likeAvatar}
-                    contentFit="cover"
-                  />
-                  <View style={styles.likeNotificationBadge} />
-                </View>
-              </Pressable>
-            );
-          })
-        ) : (
-          <>
-            <View style={styles.likeItemPlaceholder}>
-              <View style={styles.likeAvatarPlaceholder}>
-                <View style={styles.likeBadgeCount}>
-                  <ThemedText style={styles.likeBadgeText}>0</ThemedText>
-                </View>
+        {likes.map((connection) => {
+          const connUser = connection.connectedUser;
+          const photoUrl = connUser?.photos && connUser.photos.length > 0 
+            ? connUser.photos[0] 
+            : defaultAvatar;
+          
+          return (
+            <Pressable key={connection.id} style={styles.likeItem}>
+              <View style={styles.likeAvatarContainer}>
+                <Image
+                  source={{ uri: photoUrl }}
+                  style={styles.likeAvatar}
+                  contentFit="cover"
+                />
+                <View style={styles.likeNotificationBadge} />
               </View>
-            </View>
-          </>
-        )}
+            </Pressable>
+          );
+        })}
       </ScrollView>
     );
   };
@@ -189,11 +177,16 @@ export default function ConnectsScreen() {
     );
   }
 
+  const hasLikes = pendingConnections.length > 0;
+
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
-      {renderLikesRow()}
-      
-      <View style={styles.divider} />
+      {hasLikes ? (
+        <>
+          {renderLikesRow()}
+          <View style={styles.divider} />
+        </>
+      ) : null}
       
       <FlatList
         data={activeConnections.length > 0 ? activeConnections : undefined}
@@ -263,31 +256,6 @@ const styles = StyleSheet.create({
     backgroundColor: "#EF4444",
     borderWidth: 2,
     borderColor: "#FFFFFF",
-  },
-  likeItemPlaceholder: {
-    alignItems: "center",
-  },
-  likeAvatarPlaceholder: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: ObimoColors.background,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  likeBadgeCount: {
-    position: "absolute",
-    top: -4,
-    right: -4,
-    backgroundColor: ObimoColors.textSecondary,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 10,
-  },
-  likeBadgeText: {
-    ...Typography.small,
-    color: "#FFFFFF",
-    fontWeight: "700",
   },
   divider: {
     height: 1,

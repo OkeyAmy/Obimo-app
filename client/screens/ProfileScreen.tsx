@@ -48,7 +48,7 @@ export default function ProfileScreen() {
   const currentUserEmail = "test@example.com";
 
   const { data: user } = useQuery<UserProfile>({
-    queryKey: [`/api/users/email/${currentUserEmail}`],
+    queryKey: [`/api/users/${currentUserId}`],
   });
 
   const updateMutation = useMutation({
