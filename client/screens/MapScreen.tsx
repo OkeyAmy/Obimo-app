@@ -13,18 +13,16 @@ import { ObimoColors, Spacing, Typography, BorderRadius } from "@/constants/them
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 
-interface LocationData {
+interface VisitedPlace {
   id: string;
   name: string;
-  locationType: string;
-  latitude: string;
-  longitude: string;
-  description: string | null;
-  amenities: string[] | null;
-  rating: string | null;
-  imageUrl: string | null;
-  isPopular: boolean | null;
-  activeNomadsCount: number | null;
+  latitude: number;
+  longitude: number;
+  visitedAt: string;
+  duration: number;
+  photos: string[];
+  notes: string;
+  companionsMet: string[];
 }
 
 const INITIAL_REGION: Region = {
@@ -34,61 +32,81 @@ const INITIAL_REGION: Region = {
   longitudeDelta: 10,
 };
 
+const SAMPLE_VISITED_PLACES: VisitedPlace[] = [
+  {
+    id: "1",
+    name: "Moab, Utah",
+    latitude: 38.5733,
+    longitude: -109.5498,
+    visitedAt: "2025-10-15",
+    duration: 5,
+    photos: ["https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?w=400"],
+    notes: "Best sunrise spot! Met amazing people.",
+    companionsMet: ["Chris", "Jamie"],
+  },
+  {
+    id: "2",
+    name: "Sedona, Arizona",
+    latitude: 34.8697,
+    longitude: -111.7610,
+    visitedAt: "2025-11-02",
+    duration: 3,
+    photos: ["https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=400"],
+    notes: "Campfire under the stars",
+    companionsMet: ["Alex"],
+  },
+  {
+    id: "3",
+    name: "Grand Canyon, Arizona",
+    latitude: 36.0544,
+    longitude: -112.1401,
+    visitedAt: "2025-09-20",
+    duration: 2,
+    photos: [],
+    notes: "",
+    companionsMet: [],
+  },
+];
+
 export default function MapScreen() {
   const insets = useSafeAreaInsets();
   const tabBarHeight = useBottomTabBarHeight();
   const mapRef = useRef<MapView>(null);
-  const [selectedLocation, setSelectedLocation] = useState<LocationData | null>(null);
-  const [mapType, setMapType] = useState<"standard" | "satellite" | "hybrid">("standard");
-  const [is3DMode, setIs3DMode] = useState(false);
+  const [selectedPlace, setSelectedPlace] = useState<VisitedPlace | null>(null);
   const [userLocation, setUserLocation] = useState<{ latitude: number; longitude: number } | null>(null);
-  const [heading, setHeading] = useState(0);
+  const [activeFilter, setActiveFilter] = useState<"all" | "mine" | "companions" | "wishlist">("all");
 
-  const { data: locations = [], isLoading } = useQuery<LocationData[]>({
-    queryKey: ["/api/locations"],
-  });
+  const visitedPlaces = SAMPLE_VISITED_PLACES;
+  
+  const travelStats = {
+    placesVisited: 47,
+    milesTraveled: 8432,
+    companionsMade: 24,
+    memoriesCaptured: 127,
+    statesExplored: 12,
+  };
 
   useEffect(() => {
-    let locationSubscription: Location.LocationSubscription | null = null;
-    let headingSubscription: Location.LocationSubscription | null = null;
-
-    const startTracking = async () => {
+    const getLocation = async () => {
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== "granted") return;
 
-      locationSubscription = await Location.watchPositionAsync(
-        {
-          accuracy: Location.Accuracy.High,
-          distanceInterval: 10,
-          timeInterval: 5000,
-        },
-        (location) => {
-          setUserLocation({
-            latitude: location.coords.latitude,
-            longitude: location.coords.longitude,
-          });
-        }
-      );
-
-      headingSubscription = await Location.watchHeadingAsync((headingData) => {
-        setHeading(headingData.trueHeading);
+      const location = await Location.getCurrentPositionAsync({});
+      setUserLocation({
+        latitude: location.coords.latitude,
+        longitude: location.coords.longitude,
       });
     };
 
-    startTracking();
-
-    return () => {
-      locationSubscription?.remove();
-      headingSubscription?.remove();
-    };
+    getLocation();
   }, []);
 
-  const handleMarkerPress = (location: LocationData) => {
-    setSelectedLocation(location);
+  const handleMarkerPress = (place: VisitedPlace) => {
+    setSelectedPlace(place);
     if (mapRef.current) {
       mapRef.current.animateToRegion({
-        latitude: parseFloat(location.latitude),
-        longitude: parseFloat(location.longitude),
+        latitude: place.latitude,
+        longitude: place.longitude,
         latitudeDelta: 0.5,
         longitudeDelta: 0.5,
       }, 500);
@@ -97,40 +115,19 @@ export default function MapScreen() {
 
   const handleRecenter = () => {
     if (userLocation && mapRef.current) {
-      mapRef.current.animateCamera({
-        center: userLocation,
-        heading: heading,
-        pitch: is3DMode ? 60 : 0,
-        zoom: 15,
-      }, { duration: 500 });
+      mapRef.current.animateToRegion({
+        latitude: userLocation.latitude,
+        longitude: userLocation.longitude,
+        latitudeDelta: 2,
+        longitudeDelta: 2,
+      }, 500);
     }
   };
 
-  const toggle3DMode = () => {
-    setIs3DMode(prev => !prev);
-    if (mapRef.current) {
-      mapRef.current.animateCamera({
-        pitch: is3DMode ? 0 : 60,
-      }, { duration: 300 });
-    }
-  };
-
-  const cycleMapType = () => {
-    setMapType(current => {
-      if (current === "standard") return "satellite";
-      if (current === "satellite") return "hybrid";
-      return "standard";
-    });
-  };
-
-  if (isLoading) {
-    return (
-      <View style={[styles.container, styles.loadingContainer]}>
-        <ActivityIndicator size="large" color={ObimoColors.textPrimary} />
-        <ThemedText style={styles.loadingText}>Loading map...</ThemedText>
-      </View>
-    );
-  }
+  const routeCoordinates = visitedPlaces.map(place => ({
+    latitude: place.latitude,
+    longitude: place.longitude,
+  }));
 
   return (
     <View style={styles.container}>
@@ -139,133 +136,163 @@ export default function MapScreen() {
         style={styles.map}
         provider={Platform.OS === "android" ? PROVIDER_GOOGLE : undefined}
         initialRegion={INITIAL_REGION}
-        mapType={mapType}
         showsUserLocation
         showsMyLocationButton={false}
         showsCompass={false}
-        rotateEnabled
-        pitchEnabled
-        camera={{
-          center: userLocation || INITIAL_REGION,
-          pitch: is3DMode ? 60 : 0,
-          heading: heading,
-          zoom: 12,
-          altitude: 1000,
-        }}
       >
-        {locations.map((location) => (
+        {visitedPlaces.map((place, index) => (
           <Marker
-            key={`loc-${location.id}`}
+            key={place.id}
             coordinate={{
-              latitude: parseFloat(location.latitude),
-              longitude: parseFloat(location.longitude),
+              latitude: place.latitude,
+              longitude: place.longitude,
             }}
-            onPress={() => handleMarkerPress(location)}
+            onPress={() => handleMarkerPress(place)}
           >
-            <View style={styles.markerContainer}>
-              {location.imageUrl ? (
-                <Image
-                  source={{ uri: location.imageUrl }}
-                  style={styles.markerImage}
-                  contentFit="cover"
-                />
-              ) : (
-                <View style={styles.markerPlaceholder}>
-                  <Feather name="map-pin" size={16} color="#FFFFFF" />
-                </View>
-              )}
-              {location.activeNomadsCount && location.activeNomadsCount > 0 ? (
-                <View style={styles.markerBadge}>
-                  <ThemedText style={styles.markerBadgeText}>{location.activeNomadsCount}</ThemedText>
-                </View>
-              ) : null}
+            <View style={styles.visitedMarker}>
+              <Feather name="map-pin" size={20} color="#FFFFFF" />
             </View>
           </Marker>
         ))}
 
-        {userLocation ? (
-          <Marker coordinate={userLocation} anchor={{ x: 0.5, y: 0.5 }}>
-            <View style={styles.userMarker}>
-              <View style={[styles.userMarkerInner, { transform: [{ rotate: `${heading}deg` }] }]}>
-                <View style={styles.userMarkerArrow} />
-              </View>
-            </View>
-          </Marker>
+        {routeCoordinates.length > 1 ? (
+          <Polyline
+            coordinates={routeCoordinates}
+            strokeColor="#3B82F6"
+            strokeWidth={3}
+            lineDashPattern={[10, 5]}
+          />
         ) : null}
       </MapView>
 
-      <View style={[styles.controlsRight, { top: insets.top + Spacing.lg }]}>
-        <Pressable style={styles.controlButton} onPress={cycleMapType}>
-          <Feather name="layers" size={22} color={ObimoColors.textPrimary} />
-        </Pressable>
-        <Pressable 
-          style={[styles.controlButton, is3DMode ? styles.controlButtonActive : null]} 
-          onPress={toggle3DMode}
-        >
-          <ThemedText style={[styles.controlButtonText, is3DMode ? styles.controlButtonTextActive : null]}>
-            {is3DMode ? "2D" : "3D"}
-          </ThemedText>
+      <View style={[styles.header, { top: insets.top + Spacing.md }]}>
+        <ThemedText style={styles.headerTitle}>My Journey</ThemedText>
+        <Pressable style={styles.addButton}>
+          <Feather name="plus" size={20} color={ObimoColors.textPrimary} />
+          <ThemedText style={styles.addButtonText}>Add Place</ThemedText>
         </Pressable>
       </View>
 
-      <Pressable 
-        style={[styles.recenterButton, { bottom: tabBarHeight + (selectedLocation ? 240 : 100) }]} 
-        onPress={handleRecenter}
-      >
-        <Feather name="navigation" size={22} color={ObimoColors.textPrimary} />
-      </Pressable>
-
-      <View style={styles.filtersContainer}>
-        <ScrollView 
-          horizontal 
-          showsHorizontalScrollIndicator={false} 
-          contentContainerStyle={styles.filtersContent}
-        >
-          <Pressable style={[styles.filterChip, styles.filterChipActive]}>
-            <ThemedText style={[styles.filterChipText, styles.filterChipTextActive]}>All</ThemedText>
+      <View style={styles.filterBar}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterContent}>
+          <Pressable 
+            style={[styles.filterChip, activeFilter === "all" ? styles.filterChipActive : null]}
+            onPress={() => setActiveFilter("all")}
+          >
+            <ThemedText style={[styles.filterChipText, activeFilter === "all" ? styles.filterChipTextActive : null]}>
+              My Places
+            </ThemedText>
           </Pressable>
-          <Pressable style={styles.filterChip}>
-            <Feather name="sun" size={14} color={ObimoColors.textPrimary} />
-            <ThemedText style={styles.filterChipText}>Parks</ThemedText>
+          <Pressable 
+            style={[styles.filterChip, activeFilter === "companions" ? styles.filterChipActive : null]}
+            onPress={() => setActiveFilter("companions")}
+          >
+            <Feather 
+              name="users" 
+              size={14} 
+              color={activeFilter === "companions" ? "#FFFFFF" : ObimoColors.textPrimary} 
+            />
+            <ThemedText style={[styles.filterChipText, activeFilter === "companions" ? styles.filterChipTextActive : null]}>
+              Companions
+            </ThemedText>
           </Pressable>
-          <Pressable style={styles.filterChip}>
-            <Feather name="home" size={14} color={ObimoColors.textPrimary} />
-            <ThemedText style={styles.filterChipText}>Campsites</ThemedText>
-          </Pressable>
-          <Pressable style={styles.filterChip}>
-            <Feather name="users" size={14} color={ObimoColors.textPrimary} />
-            <ThemedText style={styles.filterChipText}>Nomads</ThemedText>
+          <Pressable 
+            style={[styles.filterChip, activeFilter === "wishlist" ? styles.filterChipActive : null]}
+            onPress={() => setActiveFilter("wishlist")}
+          >
+            <Feather 
+              name="heart" 
+              size={14} 
+              color={activeFilter === "wishlist" ? "#FFFFFF" : ObimoColors.textPrimary} 
+            />
+            <ThemedText style={[styles.filterChipText, activeFilter === "wishlist" ? styles.filterChipTextActive : null]}>
+              Wishlist
+            </ThemedText>
           </Pressable>
         </ScrollView>
       </View>
 
-      {selectedLocation ? (
-        <View style={[styles.locationCard, { bottom: tabBarHeight + Spacing.lg }]}>
-          <Pressable style={styles.closeCardButton} onPress={() => setSelectedLocation(null)}>
-            <Feather name="x" size={20} color={ObimoColors.textSecondary} />
+      <Pressable style={[styles.recenterButton, { bottom: tabBarHeight + (selectedPlace ? 280 : 180) }]} onPress={handleRecenter}>
+        <Feather name="navigation" size={20} color={ObimoColors.textPrimary} />
+      </Pressable>
+
+      <View style={[styles.statsCard, { bottom: tabBarHeight + Spacing.lg }]}>
+        <View style={styles.statsRow}>
+          <View style={styles.statItem}>
+            <Feather name="star" size={16} color="#F59E0B" />
+            <ThemedText style={styles.statValue}>{travelStats.placesVisited}</ThemedText>
+            <ThemedText style={styles.statLabel}>Places</ThemedText>
+          </View>
+          <View style={styles.statItem}>
+            <Feather name="truck" size={16} color="#3B82F6" />
+            <ThemedText style={styles.statValue}>{(travelStats.milesTraveled / 1000).toFixed(1)}k</ThemedText>
+            <ThemedText style={styles.statLabel}>Miles</ThemedText>
+          </View>
+          <View style={styles.statItem}>
+            <Feather name="users" size={16} color="#22C55E" />
+            <ThemedText style={styles.statValue}>{travelStats.companionsMade}</ThemedText>
+            <ThemedText style={styles.statLabel}>Friends</ThemedText>
+          </View>
+          <View style={styles.statItem}>
+            <Feather name="camera" size={16} color="#EC4899" />
+            <ThemedText style={styles.statValue}>{travelStats.memoriesCaptured}</ThemedText>
+            <ThemedText style={styles.statLabel}>Photos</ThemedText>
+          </View>
+        </View>
+      </View>
+
+      {selectedPlace ? (
+        <View style={[styles.placeCard, { bottom: tabBarHeight + 100 }]}>
+          <Pressable style={styles.closePlaceButton} onPress={() => setSelectedPlace(null)}>
+            <Feather name="x" size={18} color={ObimoColors.textSecondary} />
           </Pressable>
           
-          <ThemedText style={styles.locationName}>{selectedLocation.name}</ThemedText>
-          <ThemedText style={styles.locationType}>{selectedLocation.locationType}</ThemedText>
-          
-          {selectedLocation.imageUrl ? (
+          {selectedPlace.photos.length > 0 ? (
             <Image
-              source={{ uri: selectedLocation.imageUrl }}
-              style={styles.locationImage}
+              source={{ uri: selectedPlace.photos[0] }}
+              style={styles.placeImage}
               contentFit="cover"
             />
           ) : null}
           
-          {selectedLocation.description ? (
-            <ThemedText style={styles.locationDescription} numberOfLines={2}>
-              {selectedLocation.description}
-            </ThemedText>
-          ) : null}
-
-          <Pressable style={styles.addToRouteButton}>
-            <Feather name="plus-circle" size={18} color="#FFFFFF" />
-            <ThemedText style={styles.addToRouteText}>Add to route</ThemedText>
-          </Pressable>
+          <View style={styles.placeContent}>
+            <ThemedText style={styles.placeName}>{selectedPlace.name}</ThemedText>
+            <View style={styles.placeMetaRow}>
+              <Feather name="calendar" size={14} color={ObimoColors.textSecondary} />
+              <ThemedText style={styles.placeMeta}>
+                {new Date(selectedPlace.visitedAt).toLocaleDateString("en-US", { month: "short", year: "numeric" })}
+                {" \u2022 "}{selectedPlace.duration} days
+              </ThemedText>
+            </View>
+            
+            {selectedPlace.notes ? (
+              <ThemedText style={styles.placeNotes}>{selectedPlace.notes}</ThemedText>
+            ) : null}
+            
+            {selectedPlace.companionsMet.length > 0 ? (
+              <View style={styles.companionsRow}>
+                <Feather name="users" size={14} color={ObimoColors.textSecondary} />
+                <ThemedText style={styles.companionsText}>
+                  Met {selectedPlace.companionsMet.join(", ")} here
+                </ThemedText>
+              </View>
+            ) : null}
+            
+            <View style={styles.placeActions}>
+              <Pressable style={styles.placeActionButton}>
+                <Feather name="edit-2" size={14} color={ObimoColors.textPrimary} />
+                <ThemedText style={styles.placeActionText}>Edit</ThemedText>
+              </Pressable>
+              <Pressable style={styles.placeActionButton}>
+                <Feather name="trash-2" size={14} color="#EF4444" />
+                <ThemedText style={[styles.placeActionText, { color: "#EF4444" }]}>Delete</ThemedText>
+              </Pressable>
+              <Pressable style={styles.placeActionButton}>
+                <Feather name="share" size={14} color={ObimoColors.textPrimary} />
+                <ThemedText style={styles.placeActionText}>Share</ThemedText>
+              </Pressable>
+            </View>
+          </View>
         </View>
       ) : null}
     </View>
@@ -277,69 +304,57 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: ObimoColors.surface,
   },
-  loadingContainer: {
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  loadingText: {
-    ...Typography.body,
-    color: ObimoColors.textSecondary,
-    marginTop: Spacing.lg,
-  },
   map: {
     ...StyleSheet.absoluteFillObject,
   },
-  controlsRight: {
-    position: "absolute",
-    right: Spacing.lg,
-    gap: Spacing.sm,
-  },
-  controlButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
-    backgroundColor: "#FFFFFF",
-    alignItems: "center",
-    justifyContent: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  controlButtonActive: {
-    backgroundColor: ObimoColors.textPrimary,
-  },
-  controlButtonText: {
-    ...Typography.body,
-    fontWeight: "700",
-    color: ObimoColors.textPrimary,
-  },
-  controlButtonTextActive: {
-    color: "#FFFFFF",
-  },
-  recenterButton: {
+  header: {
     position: "absolute",
     left: Spacing.lg,
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: "#FFFFFF",
+    right: Spacing.lg,
+    flexDirection: "row",
+    justifyContent: "space-between",
     alignItems: "center",
-    justifyContent: "center",
+  },
+  headerTitle: {
+    ...Typography.h2,
+    color: ObimoColors.textPrimary,
+    backgroundColor: "#FFFFFF",
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.lg,
+    overflow: "hidden",
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 3,
   },
-  filtersContainer: {
+  addButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.xs,
+    backgroundColor: "#FFFFFF",
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.lg,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  addButtonText: {
+    ...Typography.body,
+    color: ObimoColors.textPrimary,
+    fontWeight: "500",
+  },
+  filterBar: {
     position: "absolute",
-    top: 100,
+    top: 110,
     left: 0,
     right: 0,
   },
-  filtersContent: {
+  filterContent: {
     paddingHorizontal: Spacing.lg,
     gap: Spacing.sm,
   },
@@ -368,72 +383,37 @@ const styles = StyleSheet.create({
   filterChipTextActive: {
     color: "#FFFFFF",
   },
-  markerContainer: {
-    position: "relative",
-  },
-  markerImage: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    borderWidth: 3,
-    borderColor: "#FFFFFF",
-  },
-  markerPlaceholder: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: "#22C55E",
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 3,
-    borderColor: "#FFFFFF",
-  },
-  markerBadge: {
+  recenterButton: {
     position: "absolute",
-    top: -4,
-    right: -4,
-    backgroundColor: "#22C55E",
-    width: 20,
-    height: 20,
-    borderRadius: 10,
+    right: Spacing.lg,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "#FFFFFF",
     alignItems: "center",
     justifyContent: "center",
-    borderWidth: 2,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  visitedMarker: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "#3B82F6",
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 3,
     borderColor: "#FFFFFF",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 4,
   },
-  markerBadgeText: {
-    fontSize: 10,
-    fontWeight: "700",
-    color: "#FFFFFF",
-  },
-  userMarker: {
-    width: 48,
-    height: 48,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  userMarkerInner: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: "rgba(59, 130, 246, 0.2)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  userMarkerArrow: {
-    width: 0,
-    height: 0,
-    borderLeftWidth: 8,
-    borderRightWidth: 8,
-    borderBottomWidth: 16,
-    borderStyle: "solid",
-    backgroundColor: "transparent",
-    borderLeftColor: "transparent",
-    borderRightColor: "transparent",
-    borderBottomColor: "#3B82F6",
-    transform: [{ rotate: "180deg" }],
-  },
-  locationCard: {
+  statsCard: {
     position: "absolute",
     left: Spacing.lg,
     right: Spacing.lg,
@@ -442,55 +422,109 @@ const styles = StyleSheet.create({
     padding: Spacing.lg,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+  statsRow: {
+    flexDirection: "row",
+    justifyContent: "space-around",
+  },
+  statItem: {
+    alignItems: "center",
+    gap: 2,
+  },
+  statValue: {
+    ...Typography.h3,
+    color: ObimoColors.textPrimary,
+  },
+  statLabel: {
+    ...Typography.small,
+    color: ObimoColors.textSecondary,
+  },
+  placeCard: {
+    position: "absolute",
+    left: Spacing.lg,
+    right: Spacing.lg,
+    backgroundColor: "#FFFFFF",
+    borderRadius: BorderRadius.xl,
+    overflow: "hidden",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.15,
     shadowRadius: 12,
     elevation: 8,
   },
-  closeCardButton: {
+  closePlaceButton: {
     position: "absolute",
-    top: Spacing.md,
-    right: Spacing.md,
+    top: Spacing.sm,
+    right: Spacing.sm,
     zIndex: 1,
     width: 28,
     height: 28,
     borderRadius: 14,
-    backgroundColor: ObimoColors.background,
+    backgroundColor: "rgba(255,255,255,0.9)",
     alignItems: "center",
     justifyContent: "center",
   },
-  locationName: {
+  placeImage: {
+    width: "100%",
+    height: 120,
+  },
+  placeContent: {
+    padding: Spacing.lg,
+  },
+  placeName: {
     ...Typography.h3,
     color: ObimoColors.textPrimary,
   },
-  locationType: {
+  placeMetaRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.xs,
+    marginTop: Spacing.xs,
+  },
+  placeMeta: {
     ...Typography.small,
     color: ObimoColors.textSecondary,
-    marginTop: 2,
   },
-  locationImage: {
-    width: "100%",
-    height: 120,
-    borderRadius: BorderRadius.lg,
-    marginTop: Spacing.md,
-  },
-  locationDescription: {
+  placeNotes: {
     ...Typography.body,
     color: ObimoColors.textSecondary,
     marginTop: Spacing.sm,
+    fontStyle: "italic",
   },
-  addToRouteButton: {
+  companionsRow: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#22C55E",
-    paddingVertical: Spacing.md,
-    borderRadius: BorderRadius.full,
-    gap: Spacing.sm,
-    marginTop: Spacing.lg,
+    gap: Spacing.xs,
+    marginTop: Spacing.sm,
+    backgroundColor: ObimoColors.background,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.lg,
   },
-  addToRouteText: {
-    ...Typography.body,
-    color: "#FFFFFF",
-    fontWeight: "600",
+  companionsText: {
+    ...Typography.small,
+    color: ObimoColors.textPrimary,
+  },
+  placeActions: {
+    flexDirection: "row",
+    gap: Spacing.md,
+    marginTop: Spacing.lg,
+    paddingTop: Spacing.md,
+    borderTopWidth: 1,
+    borderTopColor: ObimoColors.background,
+  },
+  placeActionButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.xs,
+    paddingVertical: Spacing.xs,
+  },
+  placeActionText: {
+    ...Typography.small,
+    color: ObimoColors.textPrimary,
+    fontWeight: "500",
   },
 });

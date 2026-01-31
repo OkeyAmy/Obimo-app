@@ -1,5 +1,5 @@
-import React, { useState } from "react";
-import { View, StyleSheet, Pressable, Modal, TextInput, ScrollView } from "react-native";
+import React, { useState, useEffect } from "react";
+import { View, StyleSheet, Pressable, Modal, TextInput, ScrollView, Platform } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useHeaderHeight } from "@react-navigation/elements";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
@@ -8,6 +8,8 @@ import { Feather } from "@expo/vector-icons";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Image } from "expo-image";
 import * as Haptics from "expo-haptics";
+// @ts-ignore - DateTimePicker is part of Expo Go compatible libraries
+import DateTimePicker from "@react-native-community/datetimepicker";
 
 import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
 import { ThemedText } from "@/components/ThemedText";
@@ -41,8 +43,11 @@ export default function ProfileScreen() {
   const [showEditModal, setShowEditModal] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [showNotificationsModal, setShowNotificationsModal] = useState(false);
+  
   const [editFirstName, setEditFirstName] = useState("");
-  const [editBio, setEditBio] = useState("");
+  const [editGender, setEditGender] = useState("");
+  const [editDateOfBirth, setEditDateOfBirth] = useState<Date | null>(null);
+  const [showDatePicker, setShowDatePicker] = useState(false);
 
   const currentUserEmail = "test@example.com";
 
@@ -50,13 +55,23 @@ export default function ProfileScreen() {
     queryKey: [`/api/users/email/${currentUserEmail}`],
   });
 
+  useEffect(() => {
+    if (user) {
+      setEditFirstName(user.firstName || "");
+      setEditGender(user.gender || "");
+      if (user.dateOfBirth) {
+        setEditDateOfBirth(new Date(user.dateOfBirth));
+      }
+    }
+  }, [user]);
+
   const updateMutation = useMutation({
     mutationFn: async (updates: Partial<UserProfile>) => {
       if (!user) return;
       return apiRequest("PATCH", `/api/users/${user.id}`, updates);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/users/email"] });
+      queryClient.invalidateQueries({ queryKey: [`/api/users/email/${currentUserEmail}`] });
       setShowEditModal(false);
     },
   });
@@ -71,13 +86,15 @@ export default function ProfileScreen() {
     );
   };
 
-  const handleOpenEdit = () => {
-    setEditFirstName(user?.firstName || "");
-    setShowEditModal(true);
-  };
-
   const handleSaveProfile = () => {
-    updateMutation.mutate({ firstName: editFirstName });
+    const updates: Partial<UserProfile> = {
+      firstName: editFirstName,
+      gender: editGender,
+    };
+    if (editDateOfBirth) {
+      updates.dateOfBirth = editDateOfBirth.toISOString().split("T")[0];
+    }
+    updateMutation.mutate(updates);
   };
 
   const calculateAge = (dateOfBirth: string | null) => {
@@ -92,9 +109,16 @@ export default function ProfileScreen() {
     return age;
   };
 
-  const displayName = user?.firstName || "Nomad User";
+  const displayName = user?.firstName || "New User";
   const age = calculateAge(user?.dateOfBirth || null);
   const userPhoto = user?.photos && user.photos.length > 0 ? user.photos[0] : defaultAvatar;
+
+  const formatLocation = () => {
+    if (user?.latitude && user?.longitude) {
+      return "Location tracked";
+    }
+    return "Location not available";
+  };
 
   return (
     <KeyboardAwareScrollViewCompat
@@ -115,12 +139,10 @@ export default function ProfileScreen() {
         <ThemedText style={styles.userName}>
           {displayName}{age ? `, ${age}` : ""}
         </ThemedText>
-        <ThemedText style={styles.userEmail}>{user?.email || ""}</ThemedText>
-        
-        <Pressable style={styles.editProfileButton} onPress={handleOpenEdit}>
-          <Feather name="edit-2" size={16} color="#FFFFFF" />
-          <ThemedText style={styles.editProfileText}>Edit Profile</ThemedText>
-        </Pressable>
+        {user?.gender ? (
+          <ThemedText style={styles.userGender}>{user.gender}</ThemedText>
+        ) : null}
+        <ThemedText style={styles.userLocation}>{formatLocation()}</ThemedText>
       </View>
 
       <View style={styles.section}>
@@ -129,7 +151,7 @@ export default function ProfileScreen() {
         <MenuItem 
           icon="user" 
           label="Edit Profile" 
-          onPress={handleOpenEdit}
+          onPress={() => setShowEditModal(true)}
         />
         <MenuItem 
           icon="settings" 
@@ -142,6 +164,13 @@ export default function ProfileScreen() {
           onPress={() => setShowNotificationsModal(true)}
         />
         <MenuItem icon="shield" label="Privacy" />
+      </View>
+
+      <View style={styles.section}>
+        <ThemedText style={styles.sectionTitle}>Subscription</ThemedText>
+        
+        <MenuItem icon="star" label="Upgrade to Premium" />
+        <MenuItem icon="credit-card" label="Manage Subscription" />
       </View>
 
       <View style={styles.section}>
@@ -178,33 +207,94 @@ export default function ProfileScreen() {
           
           <ScrollView style={styles.modalContent}>
             <View style={styles.editSection}>
-              <ThemedText style={styles.editLabel}>Bio</ThemedText>
-              <ThemedText style={styles.editHint}>Write a fun and punchy intro.</ThemedText>
+              <ThemedText style={styles.editLabel}>Photos</ThemedText>
+              <View style={styles.photosGrid}>
+                <Pressable style={styles.photoSlot}>
+                  {userPhoto ? (
+                    <Image source={{ uri: userPhoto }} style={styles.photoImage} contentFit="cover" />
+                  ) : (
+                    <Feather name="plus" size={24} color={ObimoColors.textSecondary} />
+                  )}
+                </Pressable>
+                {[1, 2, 3, 4, 5].map((index) => (
+                  <Pressable key={index} style={styles.photoSlot}>
+                    <Feather name="plus" size={24} color={ObimoColors.textSecondary} />
+                  </Pressable>
+                ))}
+              </View>
+            </View>
+
+            <View style={styles.editSection}>
+              <ThemedText style={styles.editLabel}>First Name</ThemedText>
               <TextInput
-                style={styles.bioInput}
-                value={editBio}
-                onChangeText={setEditBio}
-                placeholder="Hi there!"
+                style={styles.textInput}
+                value={editFirstName}
+                onChangeText={setEditFirstName}
+                placeholder="Enter your first name"
                 placeholderTextColor={ObimoColors.textSecondary}
-                multiline
               />
             </View>
 
             <View style={styles.editSection}>
-              <ThemedText style={styles.editSectionTitle}>About you</ThemedText>
-              
-              <EditRow icon="briefcase" label="Work" value="Add" />
-              <EditRow icon="book" label="Education" value="Add" />
-              <EditRow icon="user" label="Gender" value={user?.gender || "Add"} />
-              <EditRow icon="map-pin" label="Location" value="Nearby" />
-              <EditRow icon="home" label="Hometown" value="Add" />
+              <ThemedText style={styles.editLabel}>Date of Birth</ThemedText>
+              <Pressable 
+                style={styles.dateButton}
+                onPress={() => setShowDatePicker(true)}
+              >
+                <ThemedText style={styles.dateButtonText}>
+                  {editDateOfBirth 
+                    ? editDateOfBirth.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })
+                    : "Select your birthday"
+                  }
+                </ThemedText>
+                <Feather name="calendar" size={18} color={ObimoColors.textSecondary} />
+              </Pressable>
+              {showDatePicker ? (
+                <DateTimePicker
+                  value={editDateOfBirth || new Date(2000, 0, 1)}
+                  mode="date"
+                  display={Platform.OS === "ios" ? "spinner" : "default"}
+                  onChange={(_event: any, date?: Date) => {
+                    setShowDatePicker(Platform.OS === "ios");
+                    if (date) setEditDateOfBirth(date);
+                  }}
+                  maximumDate={new Date()}
+                  minimumDate={new Date(1920, 0, 1)}
+                />
+              ) : null}
             </View>
 
             <View style={styles.editSection}>
-              <ThemedText style={styles.editSectionTitle}>More about you</ThemedText>
-              <ThemedText style={styles.editHint}>Cover the things most people are curious about.</ThemedText>
-              
-              <EditRow icon="ruler" label="Height" value="Add" />
+              <ThemedText style={styles.editLabel}>Gender</ThemedText>
+              <View style={styles.genderOptions}>
+                {["Man", "Woman", "Non-binary", "Other"].map((option) => (
+                  <Pressable 
+                    key={option}
+                    style={[
+                      styles.genderOption,
+                      editGender === option ? styles.genderOptionSelected : null,
+                    ]}
+                    onPress={() => setEditGender(option)}
+                  >
+                    <ThemedText style={[
+                      styles.genderOptionText,
+                      editGender === option ? styles.genderOptionTextSelected : null,
+                    ]}>
+                      {option}
+                    </ThemedText>
+                  </Pressable>
+                ))}
+              </View>
+            </View>
+
+            <View style={styles.editSection}>
+              <ThemedText style={styles.editLabel}>Location</ThemedText>
+              <View style={styles.locationInfo}>
+                <Feather name="map-pin" size={18} color="#22C55E" />
+                <ThemedText style={styles.locationText}>
+                  Location is automatically tracked when enabled
+                </ThemedText>
+              </View>
             </View>
           </ScrollView>
         </View>
@@ -235,7 +325,7 @@ export default function ProfileScreen() {
 
             <View style={styles.settingsSection}>
               <ThemedText style={styles.settingsSectionTitle}>Discovery</ThemedText>
-              <SettingsRow label="Location" value="Enabled" />
+              <SettingsRow label="Location" value={user?.locationPermission ? "Enabled" : "Disabled"} />
               <SettingsRow label="Maximum Distance" value="50 mi" />
               <SettingsRow label="Age Range" value="18-45" />
             </View>
@@ -267,16 +357,16 @@ export default function ProfileScreen() {
           <ScrollView style={styles.modalContent}>
             <View style={styles.settingsSection}>
               <ThemedText style={styles.settingsSectionTitle}>Push Notifications</ThemedText>
-              <SettingsRow label="New Matches" toggle defaultValue={true} />
-              <SettingsRow label="Messages" toggle defaultValue={true} />
-              <SettingsRow label="Likes" toggle defaultValue={true} />
-              <SettingsRow label="Super Likes" toggle defaultValue={true} />
+              <SettingsRow label="New Matches" toggle defaultValue={user?.notificationPermission || false} />
+              <SettingsRow label="Messages" toggle defaultValue={user?.notificationPermission || false} />
+              <SettingsRow label="Likes" toggle defaultValue={user?.notificationPermission || false} />
+              <SettingsRow label="Nearby Companions" toggle defaultValue={user?.notificationPermission || false} />
             </View>
 
             <View style={styles.settingsSection}>
               <ThemedText style={styles.settingsSectionTitle}>Email Notifications</ThemedText>
               <SettingsRow label="Weekly Digest" toggle defaultValue={false} />
-              <SettingsRow label="Promotions" toggle defaultValue={false} />
+              <SettingsRow label="Reunion Suggestions" toggle defaultValue={true} />
             </View>
           </ScrollView>
         </View>
@@ -303,29 +393,6 @@ function MenuItem({
         <ThemedText style={styles.menuItemLabel}>{label}</ThemedText>
       </View>
       <Feather name="chevron-right" size={20} color={ObimoColors.textSecondary} />
-    </Pressable>
-  );
-}
-
-function EditRow({ 
-  icon, 
-  label, 
-  value 
-}: { 
-  icon: string; 
-  label: string; 
-  value?: string;
-}) {
-  return (
-    <Pressable style={styles.editRow}>
-      <View style={styles.editRowLeft}>
-        <Feather name={icon as any} size={18} color={ObimoColors.textSecondary} />
-        <ThemedText style={styles.editRowLabel}>{label}</ThemedText>
-      </View>
-      <View style={styles.editRowRight}>
-        <ThemedText style={styles.editRowValue}>{value}</ThemedText>
-        <Feather name="chevron-right" size={18} color={ObimoColors.textSecondary} />
-      </View>
     </Pressable>
   );
 }
@@ -385,28 +452,18 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.md,
   },
   userName: {
-    ...Typography.h3,
+    ...Typography.h2,
     color: ObimoColors.textPrimary,
-    marginBottom: Spacing.xs,
   },
-  userEmail: {
+  userGender: {
     ...Typography.body,
     color: ObimoColors.textSecondary,
+    marginTop: Spacing.xs,
   },
-  editProfileButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: ObimoColors.textPrimary,
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.sm,
-    borderRadius: BorderRadius.full,
-    marginTop: Spacing.lg,
-    gap: Spacing.xs,
-  },
-  editProfileText: {
-    ...Typography.body,
-    color: "#FFFFFF",
-    fontWeight: "600",
+  userLocation: {
+    ...Typography.small,
+    color: ObimoColors.textSecondary,
+    marginTop: Spacing.xs,
   },
   section: {
     marginBottom: Spacing["2xl"],
@@ -496,52 +553,80 @@ const styles = StyleSheet.create({
   editLabel: {
     ...Typography.h4,
     color: ObimoColors.textPrimary,
-    marginBottom: Spacing.xs,
-  },
-  editHint: {
-    ...Typography.body,
-    color: ObimoColors.textSecondary,
     marginBottom: Spacing.md,
   },
-  editSectionTitle: {
-    ...Typography.h4,
-    color: ObimoColors.textPrimary,
-    marginBottom: Spacing.lg,
+  photosGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: Spacing.sm,
   },
-  bioInput: {
+  photoSlot: {
+    width: 100,
+    height: 130,
+    borderRadius: BorderRadius.lg,
+    backgroundColor: ObimoColors.background,
+    alignItems: "center",
+    justifyContent: "center",
+    overflow: "hidden",
+  },
+  photoImage: {
+    width: "100%",
+    height: "100%",
+  },
+  textInput: {
     ...Typography.body,
     color: ObimoColors.textPrimary,
     backgroundColor: ObimoColors.background,
     borderRadius: BorderRadius.lg,
-    padding: Spacing.lg,
-    minHeight: 100,
-    textAlignVertical: "top",
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
   },
-  editRow: {
+  dateButton: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
+    backgroundColor: ObimoColors.background,
+    borderRadius: BorderRadius.lg,
+    paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.md,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: ObimoColors.background,
   },
-  editRowLeft: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: Spacing.md,
-  },
-  editRowLabel: {
+  dateButtonText: {
     ...Typography.body,
     color: ObimoColors.textPrimary,
   },
-  editRowRight: {
+  genderOptions: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: Spacing.sm,
+  },
+  genderOption: {
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.full,
+    backgroundColor: ObimoColors.background,
+  },
+  genderOptionSelected: {
+    backgroundColor: ObimoColors.textPrimary,
+  },
+  genderOptionText: {
+    ...Typography.body,
+    color: ObimoColors.textPrimary,
+  },
+  genderOptionTextSelected: {
+    color: "#FFFFFF",
+  },
+  locationInfo: {
     flexDirection: "row",
     alignItems: "center",
-    gap: Spacing.xs,
+    gap: Spacing.sm,
+    backgroundColor: "#DCFCE7",
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
+    borderRadius: BorderRadius.lg,
   },
-  editRowValue: {
+  locationText: {
     ...Typography.body,
-    color: ObimoColors.textSecondary,
+    color: "#166534",
   },
   settingsSection: {
     paddingVertical: Spacing.xl,
