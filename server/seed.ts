@@ -98,6 +98,19 @@ const sampleLocations = [
 
 const sampleUsers = [
   {
+    id: "test-user-1",
+    email: "test@example.com",
+    firstName: "Alex",
+    dateOfBirth: "1995-06-15",
+    gender: "non-binary",
+    photos: ["https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=400"],
+    locationPermission: true,
+    notificationPermission: true,
+    onboardingCompleted: true,
+    latitude: "34.0522",
+    longitude: "-118.2437",
+  },
+  {
     email: "sarah.wanderer@example.com",
     firstName: "Sarah",
     dateOfBirth: "1996-03-15",
@@ -106,8 +119,8 @@ const sampleUsers = [
     locationPermission: true,
     notificationPermission: true,
     onboardingCompleted: true,
-    latitude: "34.0522",
-    longitude: "-118.2437",
+    latitude: "34.1522",
+    longitude: "-118.3437",
   },
   {
     email: "jake.nomad@example.com",
@@ -202,7 +215,9 @@ export async function seedDatabase() {
     for (const userData of sampleUsers) {
       const existing = await db.select().from(users).where(eq(users.email, userData.email));
       if (existing.length === 0) {
-        await db.insert(users).values(userData);
+        // Use provided ID if available, otherwise let DB generate
+        const insertData = { ...userData };
+        await db.insert(users).values(insertData as any);
         console.log(`Created user: ${userData.firstName}`);
       }
     }

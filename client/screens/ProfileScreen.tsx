@@ -44,6 +44,7 @@ export default function ProfileScreen() {
   const [editFirstName, setEditFirstName] = useState("");
   const [editBio, setEditBio] = useState("");
 
+  const currentUserId = "test-user-1";
   const currentUserEmail = "test@example.com";
 
   const { data: user } = useQuery<UserProfile>({

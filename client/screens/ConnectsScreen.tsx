@@ -53,7 +53,7 @@ export default function ConnectsScreen() {
   const insets = useSafeAreaInsets();
   const tabBarHeight = useBottomTabBarHeight();
   
-  const currentUserId = "user-1";
+  const currentUserId = "test-user-1";
 
   const { data: connections = [], isLoading } = useQuery<Connection[]>({
     queryKey: ["/api/connections", currentUserId],

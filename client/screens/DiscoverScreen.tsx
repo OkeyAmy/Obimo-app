@@ -177,7 +177,7 @@ export default function DiscoverScreen() {
   const [showFilterModal, setShowFilterModal] = useState(false);
   const [showLikesModal, setShowLikesModal] = useState(false);
   
-  const currentUserId = "user-1";
+  const currentUserId = "test-user-1";
 
   const { data: users = [], isLoading, refetch } = useQuery<UserProfile[]>({
     queryKey: ["/api/discover", currentUserId],
