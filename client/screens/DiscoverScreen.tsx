@@ -2,7 +2,7 @@ import React, { useState, useCallback, useEffect } from "react";
 import { View, StyleSheet, Dimensions, Pressable, Image, ActivityIndicator, Modal } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
-import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
+import { Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import Animated, {
   useAnimatedStyle,
@@ -54,10 +54,9 @@ interface ProfileCardProps {
   user: UserProfile;
   isFirst: boolean;
   onSwipe: (direction: "left" | "right" | "up", userId: string) => void;
-  confidenceScore?: number;
 }
 
-function ProfileCard({ user, isFirst, onSwipe, confidenceScore }: ProfileCardProps) {
+function ProfileCard({ user, isFirst, onSwipe }: ProfileCardProps) {
   const translateX = useSharedValue(0);
   const translateY = useSharedValue(0);
   const rotation = useSharedValue(0);
@@ -139,7 +138,7 @@ function ProfileCard({ user, isFirst, onSwipe, confidenceScore }: ProfileCardPro
   };
 
   const age = calculateAge(user.dateOfBirth);
-  const displayName = user.firstName || "Nomad";
+  const displayName = user.firstName || "Traveler";
   const nameWithAge = age ? `${displayName}, ${age}` : displayName;
 
   return (
@@ -167,17 +166,17 @@ function ProfileCard({ user, isFirst, onSwipe, confidenceScore }: ProfileCardPro
             <ThemedText style={styles.userName}>{nameWithAge}</ThemedText>
             
             <View style={styles.infoRow}>
-              <Feather name="map-pin" size={14} color="#FFFFFF" />
+              <Feather name="navigation" size={14} color="#FFFFFF" />
               <ThemedText style={styles.infoText}>5 miles away</ThemedText>
             </View>
             
             <View style={styles.infoRow}>
-              <Feather name="truck" size={14} color="#FFFFFF" />
+              <Feather name="compass" size={14} color="#FFFFFF" />
               <ThemedText style={styles.infoText}>Sprinter Van</ThemedText>
             </View>
             
             <View style={styles.infoRow}>
-              <Feather name="star" size={14} color="#FFFFFF" />
+              <Feather name="map" size={14} color="#FFFFFF" />
               <ThemedText style={styles.infoText}>12 places visited</ThemedText>
             </View>
 
@@ -199,6 +198,15 @@ export default function DiscoverScreen() {
   const [swipedUserIds, setSwipedUserIds] = useState<string[]>([]);
   const [showFilterModal, setShowFilterModal] = useState(false);
   const [selectedRadius, setSelectedRadius] = useState("10 mi");
+  const [showRadiusDropdown, setShowRadiusDropdown] = useState(false);
+  
+  const [filters, setFilters] = useState({
+    vanType: "Any",
+    ageRange: "Any",
+    gender: "Everyone",
+    placesVisited: "Any",
+    lastActive: "Any",
+  });
   
   const currentUserId = "user-1";
 
@@ -289,11 +297,14 @@ export default function DiscoverScreen() {
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <View style={styles.header}>
-        <Pressable style={styles.radiusButton}>
-          <Feather name="settings" size={18} color={ObimoColors.textSecondary} />
+        <Pressable style={styles.settingsButton}>
+          <Feather name="sliders" size={18} color={ObimoColors.textSecondary} />
         </Pressable>
         
-        <Pressable style={styles.radiusSelector}>
+        <Pressable 
+          style={styles.radiusSelector}
+          onPress={() => setShowRadiusDropdown(!showRadiusDropdown)}
+        >
           <ThemedText style={styles.radiusText}>Radius: {selectedRadius}</ThemedText>
           <Feather name="chevron-down" size={16} color={ObimoColors.textPrimary} />
         </Pressable>
@@ -307,6 +318,31 @@ export default function DiscoverScreen() {
           <Feather name="target" size={16} color={ObimoColors.textPrimary} />
         </Pressable>
       </View>
+
+      {showRadiusDropdown ? (
+        <View style={styles.radiusDropdown}>
+          {["5 mi", "10 mi", "20 mi", "50 mi"].map((radius) => (
+            <Pressable
+              key={radius}
+              style={[
+                styles.radiusOption,
+                selectedRadius === radius ? styles.radiusOptionSelected : null,
+              ]}
+              onPress={() => {
+                setSelectedRadius(radius);
+                setShowRadiusDropdown(false);
+              }}
+            >
+              <ThemedText style={[
+                styles.radiusOptionText,
+                selectedRadius === radius ? styles.radiusOptionTextSelected : null,
+              ]}>
+                {radius}
+              </ThemedText>
+            </Pressable>
+          ))}
+        </View>
+      ) : null}
 
       <View style={[styles.cardContainer, { height: cardHeight }]}>
         {visibleUsers.length > 0 ? (
@@ -323,7 +359,7 @@ export default function DiscoverScreen() {
             ))
         ) : (
           <View style={styles.emptyState}>
-            <MaterialCommunityIcons name="campfire" size={64} color={ObimoColors.textSecondary} />
+            <Feather name="sun" size={64} color={ObimoColors.textSecondary} />
             <ThemedText style={styles.emptyText}>You've seen everyone nearby!</ThemedText>
             <Pressable style={styles.expandButton}>
               <ThemedText style={styles.expandButtonText}>Expand radius to 20 miles</ThemedText>
@@ -338,7 +374,7 @@ export default function DiscoverScreen() {
         )}
       </View>
 
-      <View style={[styles.actionButtons, { marginBottom: tabBarHeight + Spacing.lg }]}>
+      <View style={[styles.actionButtons, { marginBottom: tabBarHeight + Spacing.md }]}>
         <Pressable
           style={[styles.actionButton, styles.passButton]}
           onPress={handlePass}
@@ -346,8 +382,6 @@ export default function DiscoverScreen() {
         >
           <Feather name="x" size={28} color="#EF4444" />
         </Pressable>
-        
-        <ThemedText style={styles.swipeHint}>PASS</ThemedText>
 
         <Pressable
           style={[styles.actionButton, styles.superButton]}
@@ -356,8 +390,6 @@ export default function DiscoverScreen() {
         >
           <Feather name="star" size={24} color="#F59E0B" />
         </Pressable>
-        
-        <ThemedText style={styles.swipeHint}>SUPER LIKE</ThemedText>
 
         <Pressable
           style={[styles.actionButton, styles.connectButton]}
@@ -366,8 +398,6 @@ export default function DiscoverScreen() {
         >
           <Feather name="heart" size={28} color="#22C55E" />
         </Pressable>
-        
-        <ThemedText style={styles.swipeHint}>CONNECT</ThemedText>
       </View>
 
       <Modal
@@ -389,8 +419,18 @@ export default function DiscoverScreen() {
               <ThemedText style={styles.filterLabel}>Van Type</ThemedText>
               <View style={styles.filterOptions}>
                 {["Sprinter", "Class B", "School Bus", "Campervan", "Any"].map((option) => (
-                  <Pressable key={option} style={styles.filterOption}>
-                    <ThemedText style={styles.filterOptionText}>{option}</ThemedText>
+                  <Pressable 
+                    key={option} 
+                    style={[
+                      styles.filterOption,
+                      filters.vanType === option ? styles.filterOptionSelected : null,
+                    ]}
+                    onPress={() => setFilters({...filters, vanType: option})}
+                  >
+                    <ThemedText style={[
+                      styles.filterOptionText,
+                      filters.vanType === option ? styles.filterOptionTextSelected : null,
+                    ]}>{option}</ThemedText>
                   </Pressable>
                 ))}
               </View>
@@ -400,8 +440,18 @@ export default function DiscoverScreen() {
               <ThemedText style={styles.filterLabel}>Age Range</ThemedText>
               <View style={styles.filterOptions}>
                 {["18-25", "25-35", "35-45", "45+", "Any"].map((option) => (
-                  <Pressable key={option} style={styles.filterOption}>
-                    <ThemedText style={styles.filterOptionText}>{option}</ThemedText>
+                  <Pressable 
+                    key={option} 
+                    style={[
+                      styles.filterOption,
+                      filters.ageRange === option ? styles.filterOptionSelected : null,
+                    ]}
+                    onPress={() => setFilters({...filters, ageRange: option})}
+                  >
+                    <ThemedText style={[
+                      styles.filterOptionText,
+                      filters.ageRange === option ? styles.filterOptionTextSelected : null,
+                    ]}>{option}</ThemedText>
                   </Pressable>
                 ))}
               </View>
@@ -411,8 +461,18 @@ export default function DiscoverScreen() {
               <ThemedText style={styles.filterLabel}>Gender</ThemedText>
               <View style={styles.filterOptions}>
                 {["Men", "Women", "Non-binary", "Everyone"].map((option) => (
-                  <Pressable key={option} style={styles.filterOption}>
-                    <ThemedText style={styles.filterOptionText}>{option}</ThemedText>
+                  <Pressable 
+                    key={option} 
+                    style={[
+                      styles.filterOption,
+                      filters.gender === option ? styles.filterOptionSelected : null,
+                    ]}
+                    onPress={() => setFilters({...filters, gender: option})}
+                  >
+                    <ThemedText style={[
+                      styles.filterOptionText,
+                      filters.gender === option ? styles.filterOptionTextSelected : null,
+                    ]}>{option}</ThemedText>
                   </Pressable>
                 ))}
               </View>
@@ -422,8 +482,18 @@ export default function DiscoverScreen() {
               <ThemedText style={styles.filterLabel}>Places Visited (minimum)</ThemedText>
               <View style={styles.filterOptions}>
                 {["1+", "5+", "10+", "20+", "Any"].map((option) => (
-                  <Pressable key={option} style={styles.filterOption}>
-                    <ThemedText style={styles.filterOptionText}>{option}</ThemedText>
+                  <Pressable 
+                    key={option} 
+                    style={[
+                      styles.filterOption,
+                      filters.placesVisited === option ? styles.filterOptionSelected : null,
+                    ]}
+                    onPress={() => setFilters({...filters, placesVisited: option})}
+                  >
+                    <ThemedText style={[
+                      styles.filterOptionText,
+                      filters.placesVisited === option ? styles.filterOptionTextSelected : null,
+                    ]}>{option}</ThemedText>
                   </Pressable>
                 ))}
               </View>
@@ -433,8 +503,18 @@ export default function DiscoverScreen() {
               <ThemedText style={styles.filterLabel}>Last Active</ThemedText>
               <View style={styles.filterOptions}>
                 {["24h", "Week", "Month", "Any"].map((option) => (
-                  <Pressable key={option} style={styles.filterOption}>
-                    <ThemedText style={styles.filterOptionText}>{option}</ThemedText>
+                  <Pressable 
+                    key={option} 
+                    style={[
+                      styles.filterOption,
+                      filters.lastActive === option ? styles.filterOptionSelected : null,
+                    ]}
+                    onPress={() => setFilters({...filters, lastActive: option})}
+                  >
+                    <ThemedText style={[
+                      styles.filterOptionText,
+                      filters.lastActive === option ? styles.filterOptionTextSelected : null,
+                    ]}>{option}</ThemedText>
                   </Pressable>
                 ))}
               </View>
@@ -474,7 +554,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.md,
   },
-  radiusButton: {
+  settingsButton: {
     padding: Spacing.sm,
   },
   radiusSelector: {
@@ -486,6 +566,38 @@ const styles = StyleSheet.create({
     ...Typography.body,
     color: ObimoColors.textPrimary,
     fontWeight: "500",
+  },
+  radiusDropdown: {
+    position: "absolute",
+    top: 100,
+    left: "50%",
+    marginLeft: -60,
+    width: 120,
+    backgroundColor: "#FFFFFF",
+    borderRadius: BorderRadius.lg,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 8,
+    zIndex: 100,
+  },
+  radiusOption: {
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: ObimoColors.background,
+  },
+  radiusOptionSelected: {
+    backgroundColor: ObimoColors.background,
+  },
+  radiusOptionText: {
+    ...Typography.body,
+    color: ObimoColors.textPrimary,
+    textAlign: "center",
+  },
+  radiusOptionTextSelected: {
+    fontWeight: "600",
   },
   filterButton: {
     flexDirection: "row",
@@ -611,14 +723,13 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "center",
     alignItems: "center",
-    gap: Spacing.xl,
+    gap: Spacing["2xl"],
     paddingVertical: Spacing.md,
-    flexWrap: "wrap",
   },
   actionButton: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "#FFFFFF",
@@ -639,13 +750,6 @@ const styles = StyleSheet.create({
   connectButton: {
     borderWidth: 2,
     borderColor: "#DCFCE7",
-  },
-  swipeHint: {
-    ...Typography.small,
-    color: ObimoColors.textSecondary,
-    fontSize: 10,
-    marginTop: -Spacing.sm,
-    display: "none",
   },
   emptyState: {
     alignItems: "center",
@@ -718,9 +822,15 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.full,
     backgroundColor: ObimoColors.background,
   },
+  filterOptionSelected: {
+    backgroundColor: ObimoColors.textPrimary,
+  },
   filterOptionText: {
     ...Typography.body,
     color: ObimoColors.textPrimary,
+  },
+  filterOptionTextSelected: {
+    color: "#FFFFFF",
   },
   applyButton: {
     margin: Spacing.xl,

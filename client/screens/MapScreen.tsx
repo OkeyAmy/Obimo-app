@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
-import { View, StyleSheet, Dimensions, Pressable, Platform, ActivityIndicator, ScrollView } from "react-native";
+import { View, StyleSheet, Dimensions, Pressable, Platform, ScrollView, ActivityIndicator } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import { Feather } from "@expo/vector-icons";
@@ -7,11 +7,18 @@ import MapView, { Marker, PROVIDER_GOOGLE, Region, Polyline } from "react-native
 import { useQuery } from "@tanstack/react-query";
 import { Image } from "expo-image";
 import * as Location from "expo-location";
+import Animated, {
+  useAnimatedStyle,
+  useSharedValue,
+  withRepeat,
+  withTiming,
+  Easing,
+} from "react-native-reanimated";
 
 import { ThemedText } from "@/components/ThemedText";
 import { ObimoColors, Spacing, Typography, BorderRadius } from "@/constants/theme";
 
-const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
+const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
 interface VisitedPlace {
   id: string;
@@ -68,13 +75,36 @@ const SAMPLE_VISITED_PLACES: VisitedPlace[] = [
   },
 ];
 
+function AnimatedSpinner() {
+  const rotation = useSharedValue(0);
+  
+  useEffect(() => {
+    rotation.value = withRepeat(
+      withTiming(360, { duration: 1500, easing: Easing.linear }),
+      -1,
+      false
+    );
+  }, []);
+  
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ rotate: `${rotation.value}deg` }],
+  }));
+  
+  return (
+    <Animated.View style={animatedStyle}>
+      <Feather name="loader" size={32} color={ObimoColors.textSecondary} />
+    </Animated.View>
+  );
+}
+
 export default function MapScreen() {
   const insets = useSafeAreaInsets();
   const tabBarHeight = useBottomTabBarHeight();
   const mapRef = useRef<MapView>(null);
   const [selectedPlace, setSelectedPlace] = useState<VisitedPlace | null>(null);
   const [userLocation, setUserLocation] = useState<{ latitude: number; longitude: number } | null>(null);
-  const [activeFilter, setActiveFilter] = useState<"all" | "mine" | "companions" | "wishlist">("all");
+  const [activeFilter, setActiveFilter] = useState<"places" | "companions" | "wishlist">("places");
+  const [isLoadingLocation, setIsLoadingLocation] = useState(true);
 
   const visitedPlaces = SAMPLE_VISITED_PLACES;
   
@@ -83,19 +113,27 @@ export default function MapScreen() {
     milesTraveled: 8432,
     companionsMade: 24,
     memoriesCaptured: 127,
-    statesExplored: 12,
   };
 
   useEffect(() => {
     const getLocation = async () => {
+      setIsLoadingLocation(true);
       const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== "granted") return;
+      if (status !== "granted") {
+        setIsLoadingLocation(false);
+        return;
+      }
 
-      const location = await Location.getCurrentPositionAsync({});
-      setUserLocation({
-        latitude: location.coords.latitude,
-        longitude: location.coords.longitude,
-      });
+      try {
+        const location = await Location.getCurrentPositionAsync({});
+        setUserLocation({
+          latitude: location.coords.latitude,
+          longitude: location.coords.longitude,
+        });
+      } catch (error) {
+        console.log("Error getting location:", error);
+      }
+      setIsLoadingLocation(false);
     };
 
     getLocation();
@@ -140,7 +178,7 @@ export default function MapScreen() {
         showsMyLocationButton={false}
         showsCompass={false}
       >
-        {visitedPlaces.map((place, index) => (
+        {activeFilter === "places" && visitedPlaces.map((place) => (
           <Marker
             key={place.id}
             coordinate={{
@@ -150,91 +188,114 @@ export default function MapScreen() {
             onPress={() => handleMarkerPress(place)}
           >
             <View style={styles.visitedMarker}>
-              <Feather name="map-pin" size={20} color="#FFFFFF" />
+              <Feather name="map-pin" size={16} color="#FFFFFF" />
             </View>
           </Marker>
         ))}
 
-        {routeCoordinates.length > 1 ? (
+        {activeFilter === "places" && routeCoordinates.length > 1 ? (
           <Polyline
             coordinates={routeCoordinates}
             strokeColor="#3B82F6"
-            strokeWidth={3}
-            lineDashPattern={[10, 5]}
+            strokeWidth={2}
+            lineDashPattern={[8, 4]}
           />
         ) : null}
       </MapView>
 
       <View style={[styles.header, { top: insets.top + Spacing.md }]}>
-        <ThemedText style={styles.headerTitle}>My Journey</ThemedText>
+        <View style={styles.headerLeft}>
+          <Feather name="compass" size={20} color={ObimoColors.textPrimary} />
+          <ThemedText style={styles.headerTitle}>My Journey</ThemedText>
+        </View>
         <Pressable style={styles.addButton}>
-          <Feather name="plus" size={20} color={ObimoColors.textPrimary} />
+          <Feather name="plus" size={18} color={ObimoColors.textPrimary} />
           <ThemedText style={styles.addButtonText}>Add Place</ThemedText>
         </Pressable>
       </View>
 
-      <View style={styles.filterBar}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterContent}>
-          <Pressable 
-            style={[styles.filterChip, activeFilter === "all" ? styles.filterChipActive : null]}
-            onPress={() => setActiveFilter("all")}
-          >
-            <ThemedText style={[styles.filterChipText, activeFilter === "all" ? styles.filterChipTextActive : null]}>
-              My Places
-            </ThemedText>
-          </Pressable>
-          <Pressable 
-            style={[styles.filterChip, activeFilter === "companions" ? styles.filterChipActive : null]}
-            onPress={() => setActiveFilter("companions")}
-          >
-            <Feather 
-              name="users" 
-              size={14} 
-              color={activeFilter === "companions" ? "#FFFFFF" : ObimoColors.textPrimary} 
-            />
-            <ThemedText style={[styles.filterChipText, activeFilter === "companions" ? styles.filterChipTextActive : null]}>
-              Companions
-            </ThemedText>
-          </Pressable>
-          <Pressable 
-            style={[styles.filterChip, activeFilter === "wishlist" ? styles.filterChipActive : null]}
-            onPress={() => setActiveFilter("wishlist")}
-          >
-            <Feather 
-              name="heart" 
-              size={14} 
-              color={activeFilter === "wishlist" ? "#FFFFFF" : ObimoColors.textPrimary} 
-            />
-            <ThemedText style={[styles.filterChipText, activeFilter === "wishlist" ? styles.filterChipTextActive : null]}>
-              Wishlist
-            </ThemedText>
-          </Pressable>
-        </ScrollView>
+      <View style={[styles.filterBar, { top: insets.top + 70 }]}>
+        <Pressable 
+          style={[styles.filterChip, activeFilter === "places" ? styles.filterChipActive : null]}
+          onPress={() => setActiveFilter("places")}
+        >
+          <Feather 
+            name="map-pin" 
+            size={14} 
+            color={activeFilter === "places" ? "#FFFFFF" : ObimoColors.textPrimary} 
+          />
+          <ThemedText style={[styles.filterChipText, activeFilter === "places" ? styles.filterChipTextActive : null]}>
+            My Places
+          </ThemedText>
+        </Pressable>
+        
+        <Pressable 
+          style={[styles.filterChip, activeFilter === "companions" ? styles.filterChipActive : null]}
+          onPress={() => setActiveFilter("companions")}
+        >
+          <Feather 
+            name="users" 
+            size={14} 
+            color={activeFilter === "companions" ? "#FFFFFF" : ObimoColors.textPrimary} 
+          />
+          <ThemedText style={[styles.filterChipText, activeFilter === "companions" ? styles.filterChipTextActive : null]}>
+            Companions
+          </ThemedText>
+        </Pressable>
+        
+        <Pressable 
+          style={[styles.filterChip, activeFilter === "wishlist" ? styles.filterChipActive : null]}
+          onPress={() => setActiveFilter("wishlist")}
+        >
+          <Feather 
+            name="heart" 
+            size={14} 
+            color={activeFilter === "wishlist" ? "#FFFFFF" : ObimoColors.textPrimary} 
+          />
+          <ThemedText style={[styles.filterChipText, activeFilter === "wishlist" ? styles.filterChipTextActive : null]}>
+            Wishlist
+          </ThemedText>
+        </Pressable>
       </View>
 
-      <Pressable style={[styles.recenterButton, { bottom: tabBarHeight + (selectedPlace ? 280 : 180) }]} onPress={handleRecenter}>
-        <Feather name="navigation" size={20} color={ObimoColors.textPrimary} />
+      <Pressable 
+        style={[styles.recenterButton, { bottom: tabBarHeight + (selectedPlace ? 290 : 130) }]} 
+        onPress={handleRecenter}
+      >
+        <Feather name="navigation" size={18} color={ObimoColors.textPrimary} />
       </Pressable>
+
+      {activeFilter === "companions" && visitedPlaces.length === 0 ? (
+        <View style={[styles.emptyCompanions, { bottom: tabBarHeight + 130 }]}>
+          <AnimatedSpinner />
+          <ThemedText style={styles.emptyCompanionsText}>
+            Searching for companions nearby...
+          </ThemedText>
+        </View>
+      ) : null}
 
       <View style={[styles.statsCard, { bottom: tabBarHeight + Spacing.lg }]}>
         <View style={styles.statsRow}>
           <View style={styles.statItem}>
-            <Feather name="star" size={16} color="#F59E0B" />
+            <Feather name="map-pin" size={16} color="#3B82F6" />
             <ThemedText style={styles.statValue}>{travelStats.placesVisited}</ThemedText>
             <ThemedText style={styles.statLabel}>Places</ThemedText>
           </View>
+          <View style={styles.statDivider} />
           <View style={styles.statItem}>
-            <Feather name="truck" size={16} color="#3B82F6" />
+            <Feather name="navigation" size={16} color="#22C55E" />
             <ThemedText style={styles.statValue}>{(travelStats.milesTraveled / 1000).toFixed(1)}k</ThemedText>
             <ThemedText style={styles.statLabel}>Miles</ThemedText>
           </View>
+          <View style={styles.statDivider} />
           <View style={styles.statItem}>
-            <Feather name="users" size={16} color="#22C55E" />
+            <Feather name="users" size={16} color="#A855F7" />
             <ThemedText style={styles.statValue}>{travelStats.companionsMade}</ThemedText>
             <ThemedText style={styles.statLabel}>Friends</ThemedText>
           </View>
+          <View style={styles.statDivider} />
           <View style={styles.statItem}>
-            <Feather name="camera" size={16} color="#EC4899" />
+            <Feather name="image" size={16} color="#F59E0B" />
             <ThemedText style={styles.statValue}>{travelStats.memoriesCaptured}</ThemedText>
             <ThemedText style={styles.statLabel}>Photos</ThemedText>
           </View>
@@ -244,7 +305,7 @@ export default function MapScreen() {
       {selectedPlace ? (
         <View style={[styles.placeCard, { bottom: tabBarHeight + 100 }]}>
           <Pressable style={styles.closePlaceButton} onPress={() => setSelectedPlace(null)}>
-            <Feather name="x" size={18} color={ObimoColors.textSecondary} />
+            <Feather name="x" size={16} color={ObimoColors.textSecondary} />
           </Pressable>
           
           {selectedPlace.photos.length > 0 ? (
@@ -258,20 +319,20 @@ export default function MapScreen() {
           <View style={styles.placeContent}>
             <ThemedText style={styles.placeName}>{selectedPlace.name}</ThemedText>
             <View style={styles.placeMetaRow}>
-              <Feather name="calendar" size={14} color={ObimoColors.textSecondary} />
+              <Feather name="calendar" size={12} color={ObimoColors.textSecondary} />
               <ThemedText style={styles.placeMeta}>
-                {new Date(selectedPlace.visitedAt).toLocaleDateString("en-US", { month: "short", year: "numeric" })}
+                {new Date(selectedPlace.visitedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
                 {" \u2022 "}{selectedPlace.duration} days
               </ThemedText>
             </View>
             
             {selectedPlace.notes ? (
-              <ThemedText style={styles.placeNotes}>{selectedPlace.notes}</ThemedText>
+              <ThemedText style={styles.placeNotes}>"{selectedPlace.notes}"</ThemedText>
             ) : null}
             
             {selectedPlace.companionsMet.length > 0 ? (
               <View style={styles.companionsRow}>
-                <Feather name="users" size={14} color={ObimoColors.textSecondary} />
+                <Feather name="users" size={12} color="#A855F7" />
                 <ThemedText style={styles.companionsText}>
                   Met {selectedPlace.companionsMet.join(", ")} here
                 </ThemedText>
@@ -288,7 +349,7 @@ export default function MapScreen() {
                 <ThemedText style={[styles.placeActionText, { color: "#EF4444" }]}>Delete</ThemedText>
               </Pressable>
               <Pressable style={styles.placeActionButton}>
-                <Feather name="share" size={14} color={ObimoColors.textPrimary} />
+                <Feather name="share-2" size={14} color={ObimoColors.textPrimary} />
                 <ThemedText style={styles.placeActionText}>Share</ThemedText>
               </Pressable>
             </View>
@@ -315,19 +376,23 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
   },
-  headerTitle: {
-    ...Typography.h2,
-    color: ObimoColors.textPrimary,
+  headerLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
     backgroundColor: "#FFFFFF",
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.sm,
     borderRadius: BorderRadius.lg,
-    overflow: "hidden",
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
+    shadowOpacity: 0.08,
     shadowRadius: 4,
     elevation: 3,
+  },
+  headerTitle: {
+    ...Typography.h3,
+    color: ObimoColors.textPrimary,
   },
   addButton: {
     flexDirection: "row",
@@ -339,7 +404,7 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.lg,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
+    shadowOpacity: 0.08,
     shadowRadius: 4,
     elevation: 3,
   },
@@ -350,12 +415,8 @@ const styles = StyleSheet.create({
   },
   filterBar: {
     position: "absolute",
-    top: 110,
-    left: 0,
-    right: 0,
-  },
-  filterContent: {
-    paddingHorizontal: Spacing.lg,
+    left: Spacing.lg,
+    flexDirection: "row",
     gap: Spacing.sm,
   },
   filterChip: {
@@ -399,9 +460,9 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   visitedMarker: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     backgroundColor: "#3B82F6",
     alignItems: "center",
     justifyContent: "center",
@@ -413,6 +474,26 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 4,
   },
+  emptyCompanions: {
+    position: "absolute",
+    left: Spacing.lg,
+    right: Spacing.lg,
+    alignItems: "center",
+    backgroundColor: "#FFFFFF",
+    paddingVertical: Spacing.xl,
+    paddingHorizontal: Spacing.lg,
+    borderRadius: BorderRadius.xl,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  emptyCompanionsText: {
+    ...Typography.body,
+    color: ObimoColors.textSecondary,
+    marginTop: Spacing.md,
+  },
   statsCard: {
     position: "absolute",
     left: Spacing.lg,
@@ -422,17 +503,24 @@ const styles = StyleSheet.create({
     padding: Spacing.lg,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
+    shadowOpacity: 0.08,
     shadowRadius: 8,
     elevation: 5,
   },
   statsRow: {
     flexDirection: "row",
-    justifyContent: "space-around",
+    justifyContent: "space-between",
+    alignItems: "center",
   },
   statItem: {
+    flex: 1,
     alignItems: "center",
     gap: 2,
+  },
+  statDivider: {
+    width: 1,
+    height: 40,
+    backgroundColor: ObimoColors.background,
   },
   statValue: {
     ...Typography.h3,
@@ -441,6 +529,7 @@ const styles = StyleSheet.create({
   statLabel: {
     ...Typography.small,
     color: ObimoColors.textSecondary,
+    fontSize: 11,
   },
   placeCard: {
     position: "absolute",
@@ -451,7 +540,7 @@ const styles = StyleSheet.create({
     overflow: "hidden",
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
+    shadowOpacity: 0.12,
     shadowRadius: 12,
     elevation: 8,
   },
@@ -463,55 +552,58 @@ const styles = StyleSheet.create({
     width: 28,
     height: 28,
     borderRadius: 14,
-    backgroundColor: "rgba(255,255,255,0.9)",
+    backgroundColor: "rgba(255,255,255,0.95)",
     alignItems: "center",
     justifyContent: "center",
   },
   placeImage: {
     width: "100%",
-    height: 120,
+    height: 100,
   },
   placeContent: {
-    padding: Spacing.lg,
+    padding: Spacing.md,
   },
   placeName: {
-    ...Typography.h3,
+    ...Typography.h4,
     color: ObimoColors.textPrimary,
   },
   placeMetaRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: Spacing.xs,
-    marginTop: Spacing.xs,
+    marginTop: 2,
   },
   placeMeta: {
     ...Typography.small,
     color: ObimoColors.textSecondary,
+    fontSize: 12,
   },
   placeNotes: {
     ...Typography.body,
     color: ObimoColors.textSecondary,
     marginTop: Spacing.sm,
     fontStyle: "italic",
+    fontSize: 13,
   },
   companionsRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: Spacing.xs,
     marginTop: Spacing.sm,
-    backgroundColor: ObimoColors.background,
+    backgroundColor: "#F3E8FF",
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.sm,
     borderRadius: BorderRadius.lg,
   },
   companionsText: {
     ...Typography.small,
-    color: ObimoColors.textPrimary,
+    color: "#7C3AED",
+    fontSize: 12,
   },
   placeActions: {
     flexDirection: "row",
-    gap: Spacing.md,
-    marginTop: Spacing.lg,
+    gap: Spacing.lg,
+    marginTop: Spacing.md,
     paddingTop: Spacing.md,
     borderTopWidth: 1,
     borderTopColor: ObimoColors.background,
@@ -519,12 +611,12 @@ const styles = StyleSheet.create({
   placeActionButton: {
     flexDirection: "row",
     alignItems: "center",
-    gap: Spacing.xs,
-    paddingVertical: Spacing.xs,
+    gap: 4,
   },
   placeActionText: {
     ...Typography.small,
     color: ObimoColors.textPrimary,
     fontWeight: "500",
+    fontSize: 12,
   },
 });
