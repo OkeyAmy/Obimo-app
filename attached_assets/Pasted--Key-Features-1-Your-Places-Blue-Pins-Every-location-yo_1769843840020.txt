@@ -1,0 +1,115 @@
+### Key Features:
+
+**1. Your Places (Blue Pins 📍)**
+- Every location you've logged automatically
+- Manual add: "I was here" feature
+- Each pin shows:
+  - Location name
+  - Dates visited
+  - Duration
+  - Photos (if added)
+  - Companions met there
+
+**2. Companion Locations (Purple Pins 👥)**
+- Shows approximate location of travel companions (city-level, not exact)
+- Only shows companions who have location sharing ON
+- Tap companion pin:
+  - Last known location (e.g., "Near Moab, UT")
+  - Distance from you
+  - "Reconnect" button (creates reunion suggestion)
+
+**3. Map Layers (Toggle On/Off)**
+- My visited places
+- Companion locations (live)
+- Places I want to visit (wishlist)
+- Hidden places (private locations)
+
+**4. Timeline Slider**
+Swipe horizontal slider to see your journey over time:
+```
+[◄──●────────────────►]
+2023   2024   2025   2026
+```
+- Pins animate to show when you visited
+- Routes draw to show travel path
+
+**5. Stats Dashboard (Swipe up from bottom)**
+```
+┌─────────────────────────────────────────────┐
+│  📊 Your Travel Stats                       │
+│                                             │
+│  ⭐ 47 Places Visited                       │
+│  🚐 8,432 Miles Traveled                    │
+│  👥 24 Companions Made                      │
+│  📸 127 Memories Captured                   │
+│  🏕️ 12 States Explored                      │
+│                                             │
+│  Most Visited: Utah (8 times)               │
+│  Longest Stay: Sedona (14 days)             │
+│                                             │
+└─────────────────────────────────────────────┘
+```
+
+### Place Detail View (Tap on Your Pin)
+
+```
+┌─────────────────────────────────────────────┐
+│  ← Map                   Moab, Utah          │
+├─────────────────────────────────────────────┤
+│                                             │
+│   📸📸📸 (Photo carousel)                    │
+│                                             │
+├─────────────────────────────────────────────┤
+│  📅 Oct 15-20, 2025 (5 days)                │
+│  📝 Best sunrise spot! Met amazing people.  │
+│                                             │
+│  👥 Companions met here:                    │
+│  ┌─────────────────────────────────────┐   │
+│  │ Chris & Jamie                       │   │
+│  │ Last seen: 84 miles away            │   │
+│  │ [Reconnect] [Message]               │   │
+│  └─────────────────────────────────────┘   │
+│                                             │
+│  ┌─────────────────────────────────────┐   │
+│  │ Alex                                │   │
+│  │ Last seen: 12 miles away 🔔         │   │ ← Nearby alert!
+│  │ [Reconnect Now!]                    │   │
+│  └─────────────────────────────────────┘   │
+│                                             │
+│  [Edit Place] [Delete] [Share Story]        │
+│                                             │
+└─────────────────────────────────────────────┘
+```
+
+### Add Place Manually
+
+When user taps "+ Add Place":
+
+```
+┌─────────────────────────────────────────────┐
+│  ← Cancel           Add a Place         Save │
+├─────────────────────────────────────────────┤
+│                                             │
+│  📍 Location                                │
+│  [Search or pin on map...]                  │
+│                                             │
+│  📅 Dates                                   │
+│  From: [Oct 15, 2025]                       │
+│  To:   [Oct 20, 2025]                       │
+│                                             │
+│  📝 Notes (optional)                        │
+│  [What made this place special?...]         │
+│                                             │
+│  📸 Add Photos (optional)                   │
+│  [+ Upload photos]                          │
+│                                             │
+│  👥 Tag Companions (optional)               │
+│  [Select companions you met here...]        │
+│                                             │
+│  🔒 Privacy                                 │
+│  ○ Visible to all connections               │
+│  ○ Visible to tagged companions only        │
+│  ● Hidden (private to me)                   │
+│                                             │
+└─────────────────────────────────────────────┘
+```
